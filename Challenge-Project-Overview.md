@@ -131,35 +131,58 @@ Use these milestones to guide your work. Your team will create a GitHub Projects
 ---
 
 ## 📚 Resources to Get Started
+
 The following resources will help your team understand the problem space and potential technical approaches for this project:
+
 **Background Reading:**
-- [OWASP Top 10 for LLMs](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
+- [e.g., Link to an article or blog post about the problem domain]
+- [e.g., Link to an industry report or case study]
+
 **Technical Tutorials:**
-- [HuggingFace NLP Course](https://huggingface.co/learn/nlp-course/)
+- [e.g., Link to a free tutorial on the ML technique(s) involved]
+- [e.g., Link to documentation for a key library or tool]
+
 **Code Examples:**
-- [LangChain Prompt Engineering & Routing Documentation](https://python.langchain.com/)
+- [e.g., Link to a relevant GitHub repo]
+- [e.g., Link to a sample implementation or starter code]
+
+**Other:**
+- [Links to any additional resources — e.g., papers, videos, podcasts, etc.]
+
+*Feel free to explore beyond these, and share anything interesting you find with me!*
 
 ---
 
 ## 🤝 How We'll Work Together
-**Check-ins:** During our biweekly 60-min AI Studio Lab Section meeting block (2nd and 4th week of every month)  
-**Communication:** Slack and GitHub Issues/Discussions  
-**Response time:** 24-48 business hours  
-**Recommended Tools:**
-- **Coding:** Google Colab Free Tier  
-- **Collaboration:** GitHub, Notion  
-- **Virtual Meetings:** Zoom, Google Meet  
+
+**Official check-ins:** During our biweekly 45-minute AI Studio Lab Section meeting block (2nd and 4th week of every month)
+
+ **Other ways to reach out to me with questions:** 
+* [e.g., Your team's channel within Break Through Tech’s Discord space]
+* [e.g., Email; please copy your teammates and AI Studio Coach]
+* [e.g., Request a team check-in on Zoom]
+* [Note: I will aim to respond within 48 hours. Please reach out to your AI Studio Coach with urgent questions.]
+
+> 💡 **Challenge Advisor: Please update the above based on your availability and preference. If you are not able to answer questions or meet with fellows outside of the biweekly Lab Section check-ins, simply write in "N/A (only available during the official check-in times)"**
+
+**Recommended free coding / collaboration tools**
+* […]
+* […]
 
 ---
 
 ## 🚀 Getting Started
-1. **Review this overview document** and note any questions for our first meeting.
-2. **Begin reviewing the dataset** using the link provided in the Dataset section.
-3. **Read the GitHub Projects documentation** [here](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects).
 
-I'm excited to work with you!
+1. **Review this overview document** and note any questions for our first meeting
+2. **Begin reviewing the dataset** using the link above
+3. **Read the GitHub Projects documentation** [here](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects)
+
+I’m excited to work with you!
 
 ---
 
+## ❓ Questions?
+
+Please bring any questions to our first meeting during the week of August 24th (Break Through Tech’s Bridge to Studio - Session C). 
 ## ❓ Questions?
 Please bring any questions to our first meeting during the week of August 24th (Break Through Tech's Bridge to Studio - Session B).
