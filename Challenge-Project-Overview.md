@@ -121,9 +121,12 @@ Use these milestones to guide your work. Your team will create a GitHub Projects
 
 ## 🛠️ Suggested Approach
 **ML Problem Type:** NLP & RAG  
+
 **Recommended Libraries:**
-- Scikit-learn, Transformers (HuggingFace), Pandas, Sentence-Transformers, LangChain
-**Evaluation Metrics:** F1-Score for safety classification, Token throughput, Cache-hit percentage, Cost-per-request ratio
+- [e.g., pandas, scikit-learn, TensorFlow, Hugging Face]
+  
+**Evaluation Metrics:**
+- [e.g., Accuracy, Precision/Recall, RMSE, BLEU score]
 
 ---
 
