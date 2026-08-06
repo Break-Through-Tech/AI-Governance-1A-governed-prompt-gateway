@@ -38,7 +38,7 @@ This project offers a compelling real-world application of AI governance. To suc
 
 ---
 
-# Governed Prompt Gateway: Token Efficient and safety aware LLM routing for regulated customer
+# Governed Prompt Gateway: Token Efficient and Safety Aware LLM Routing for Regulated Customer
 
 **Company / Org:** Other  
 **Challenge Advisor:** Hari Kishan KV, harikishan1180@gmail.com  
