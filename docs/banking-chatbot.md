@@ -1,4 +1,4 @@
-# Local banking chatbot: steps 1 and 2
+# Local banking chatbot: steps 1, 2, and 4
 
 ## Scope and data flow
 
@@ -6,13 +6,15 @@
 Bundled Kaggle CSV -> validate / normalize / deduplicate -> knowledge.jsonl
                                                        -> quality reports
 
-User question -> question-only TF-IDF -> cosine ranking -> threshold -> up to 3 QA pairs
-                                                                  -> no-match fallback
+Chat interface or CLI -> question-only TF-IDF -> cosine ranking -> threshold -> QA pairs
+                                                                          -> no-match fallback
 ```
 
 The foundation runs locally without a GPU, model download, API key, or network call.
-It does not yet include an LLM, conversation memory, a chat interface, or gateway
-policies. A similarity score describes word overlap, not answer confidence.
+The Streamlit interface displays retrieval results in a chat with session history.
+It does not include an LLM or gateway policies. Search uses only the current question;
+previous messages are displayed but are not used to interpret follow-ups.
+A similarity score describes word overlap, not answer confidence.
 
 ## Setup and commands
 
@@ -33,6 +35,37 @@ python -m unittest discover -s tests -v
 Default file locations are resolved relative to the package, not the current working
 directory. Run module commands from the repository root, or put it on `PYTHONPATH`.
 Dependencies are pinned in `requirements.txt`; the virtual environment is ignored by Git.
+
+## Chat interface
+
+After setup, start the app from the project root:
+
+```bash
+python -m streamlit run app.py
+```
+
+Open http://127.0.0.1:8501. Stop the server with Ctrl+C in its terminal.
+
+- Enter a complete question or choose one of three example buttons.
+- See the retrieved questions and complete original answers, ranked by similarity.
+  These are dataset excerpts, not generated chatbot answers.
+- Expand each result's source details to see its file, row numbers, reference ID,
+  and any review flags. No-match responses suggest rephrasing.
+- Change maximum results (1–5) and minimum similarity under Search settings.
+  Settings apply to new searches only; historical results retain their original settings.
+- Reset chat clears the conversation for the current session, while retaining search settings.
+  Sessions are independent. History is kept in server memory for that browser session,
+  is not written to disk, and is lost when the session ends.
+- Search time measures retrieval only, not page rendering or index initialization.
+
+The shared read-only index is cached by the knowledge file's content hash, so a
+changed dataset is picked up on the next app rerun. Results already in chat history
+remain snapshots. If the data is missing or malformed, the page provides the
+preparation command instead of a broken chat input.
+
+The app binds to localhost by default and Streamlit usage telemetry is disabled
+in `.streamlit/config.toml`. No model, external inference API, or model key is involved.
+Markdown in user messages and reference text is escaped for literal display.
 
 To prepare a replacement CSV with `Query,Response` columns without overwriting the
 bundled outputs:
@@ -110,6 +143,9 @@ retrieval could be added later; the current work intentionally has no model depe
 
 ## Files
 
+- `app.py`: Streamlit entry point.
+- `banking_chatbot/interface.py`: chat interface, session history, and index cache.
+- `.streamlit/config.toml`: local server settings and visual theme.
 - `banking_chatbot/data.py`: preparation, validation, normalization, IDs, reports.
 - `banking_chatbot/retrieval.py`: reusable retrieval component.
 - `banking_chatbot/evaluation.py`: development-set threshold sweep and metrics.
@@ -117,3 +153,5 @@ retrieval could be added later; the current work intentionally has no model depe
 - `data/banking/`: original source, cleaned knowledge, and development cases.
 - `reports/`: quality report, manual source review, and calibration output.
 - `tests/test_banking.py`: data integrity, provenance, retrieval, and CLI checks.
+- `tests/test_interface.py`: Streamlit integration checks for results, history, reset,
+  settings, session isolation, example questions, and missing-data recovery.

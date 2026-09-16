@@ -2,7 +2,7 @@
 
 ## Local banking chatbot foundation
 
-Dataset preparation and FAQ retrieval are implemented in `banking_chatbot/`.
+Dataset preparation, FAQ retrieval, and a Streamlit chat interface are implemented.
 They run locally with no model, API key, or cloud account. The source Kaggle CSV
 is included, along with 144 cleaned question/answer records and quality reports.
 
@@ -17,6 +17,16 @@ python -m banking_chatbot search "How do I activate my debit card?"
 python -m banking_chatbot evaluate
 python -m unittest discover -s tests -v
 ```
+
+Launch the chat interface:
+
+```bash
+python -m streamlit run app.py
+```
+
+Open http://127.0.0.1:8501. The chat shows retrieved question/answer pairs, similarity
+scores, expandable source details, session history, and a reset button. It uses no
+LLM; each question is searched independently.
 
 The project already has a local `.venv` with dependencies installed in this checkout.
 Activate it to skip installation. After installation, all commands work offline.
