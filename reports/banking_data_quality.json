@@ -1,0 +1,863 @@
+{
+  "schema_version": 1,
+  "source_file": "Dataset_Banking_chatbot.csv",
+  "source_sha256": "e97f0767b8abed835974ad62ac4650d1517359f534b31a4909f1849ebe303b17",
+  "source_encoding": "cp1252",
+  "input_rows": 145,
+  "cleaned_records": 144,
+  "normalized_rows": 1,
+  "empty_rows_removed": [],
+  "duplicate_pairs_removed": [
+    {
+      "source_row": 97,
+      "kept_id": "faq_06273575e42bc772"
+    }
+  ],
+  "questions_with_multiple_answers": [
+    {
+      "question": "What should I do if I forget my online banking password?",
+      "record_ids": [
+        "faq_76d9ce7cd9a0c4ab",
+        "faq_0b1a4c067e853ee9"
+      ]
+    },
+    {
+      "question": "Do you offer investment services?",
+      "record_ids": [
+        "faq_04da097c5ca85ad7",
+        "faq_ae86f305caa6c032"
+      ]
+    },
+    {
+      "question": "What is your policy on account inactivity fees?",
+      "record_ids": [
+        "faq_7466841d6ac314e9",
+        "faq_5ad5eda839013bfc"
+      ]
+    }
+  ],
+  "flagged_records": [
+    {
+      "id": "faq_0485328c3fb46d37",
+      "source_rows": [
+        108
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_04da097c5ca85ad7",
+      "source_rows": [
+        41
+      ],
+      "flags": [
+        "fictional_bank_claim",
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_0b1a4c067e853ee9",
+      "source_rows": [
+        127
+      ],
+      "flags": [
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_0e4a054f41a03510",
+      "source_rows": [
+        69
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_10e7d09672fd41f9",
+      "source_rows": [
+        119
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_133b46c230c2698a",
+      "source_rows": [
+        50
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_1469fb76bf4d9104",
+      "source_rows": [
+        103
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_147ed21f8642a9d6",
+      "source_rows": [
+        44
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_162e34687e677d57",
+      "source_rows": [
+        46
+      ],
+      "flags": [
+        "contact_detail",
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_17f008b1d080e817",
+      "source_rows": [
+        77
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_199f1d626007688a",
+      "source_rows": [
+        74
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_19f679dca92749c1",
+      "source_rows": [
+        88
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_1d9e5199a5857564",
+      "source_rows": [
+        9
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_1dedfa5d36655dfa",
+      "source_rows": [
+        18
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_1df105947a7ab412",
+      "source_rows": [
+        33
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_1f29b5397a0f239f",
+      "source_rows": [
+        89
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_228274d30ef66306",
+      "source_rows": [
+        12
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_2617f4182ff55f1d",
+      "source_rows": [
+        114
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_2aa268308ba85019",
+      "source_rows": [
+        101
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_2afab1c896fb39a0",
+      "source_rows": [
+        24
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_2d8bb4b03fdd58b0",
+      "source_rows": [
+        138
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_323319f806f13e47",
+      "source_rows": [
+        82
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_3f1694d8cd52d3b8",
+      "source_rows": [
+        61
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_43eca26c5f702208",
+      "source_rows": [
+        140
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_46f5bab899ad230f",
+      "source_rows": [
+        143
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_4836a9db8d22fcfb",
+      "source_rows": [
+        28
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_51b68f278b9074ac",
+      "source_rows": [
+        142
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_555bb7478a7cf8f5",
+      "source_rows": [
+        60
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_5a7effbe5c765d65",
+      "source_rows": [
+        126
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_5ad5eda839013bfc",
+      "source_rows": [
+        139
+      ],
+      "flags": [
+        "fictional_bank_claim",
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_5b83c41d01ce9618",
+      "source_rows": [
+        85
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_5c3d390f294ca506",
+      "source_rows": [
+        78
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_66d7b93ea60aa176",
+      "source_rows": [
+        32
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_68bf410a971c79c6",
+      "source_rows": [
+        125
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_6e58edbcc9ef5ab3",
+      "source_rows": [
+        31
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_6f3e80e829dcb9b7",
+      "source_rows": [
+        21
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_6fd702ad49262169",
+      "source_rows": [
+        99
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_7154cf5b4d50ff34",
+      "source_rows": [
+        73
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_7466841d6ac314e9",
+      "source_rows": [
+        84
+      ],
+      "flags": [
+        "fictional_bank_claim",
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_76d9ce7cd9a0c4ab",
+      "source_rows": [
+        7
+      ],
+      "flags": [
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_7f4e105fc47c14f2",
+      "source_rows": [
+        36
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_7f78d63097ae6d25",
+      "source_rows": [
+        17
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_8207298a49b559e3",
+      "source_rows": [
+        43
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_8830eaf1f67a5340",
+      "source_rows": [
+        25
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_8a9033a68c3e364e",
+      "source_rows": [
+        26
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_8cf300774ebff336",
+      "source_rows": [
+        58
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_8ec58dda11293000",
+      "source_rows": [
+        116
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_93b6c284aa333cbc",
+      "source_rows": [
+        20
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_99bfcb6e51bba999",
+      "source_rows": [
+        35
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_9b991ec2962a0209",
+      "source_rows": [
+        105
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_9cb0433a3909f8dd",
+      "source_rows": [
+        62
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_a165b8f996478578",
+      "source_rows": [
+        1
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_a26a28a2df7dc5ee",
+      "source_rows": [
+        98
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_a3a14ae43568791f",
+      "source_rows": [
+        94
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_a91d55210c3fdf91",
+      "source_rows": [
+        59
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_aadf6aa44a234626",
+      "source_rows": [
+        134
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_acfcc01426b22dfa",
+      "source_rows": [
+        107
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_ae86f305caa6c032",
+      "source_rows": [
+        128
+      ],
+      "flags": [
+        "fictional_bank_claim",
+        "multiple_answers_for_question"
+      ]
+    },
+    {
+      "id": "faq_b185cf8f56d7139f",
+      "source_rows": [
+        5
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_b4282cd9968daa32",
+      "source_rows": [
+        72
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_b467b5a636440529",
+      "source_rows": [
+        13
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_b581f46e295dca50",
+      "source_rows": [
+        131
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_b60869f8ed7ec5c2",
+      "source_rows": [
+        57
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_bef9721fd0163157",
+      "source_rows": [
+        145
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_c369b9aebb86ceba",
+      "source_rows": [
+        79
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_c4869c4a01e74bd4",
+      "source_rows": [
+        68
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_c64e0116b6a59cbb",
+      "source_rows": [
+        42
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_c7ff153885f3c791",
+      "source_rows": [
+        112
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_cb02a5b34b255974",
+      "source_rows": [
+        109
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_ccd12f023d08329d",
+      "source_rows": [
+        6
+      ],
+      "flags": [
+        "contact_detail",
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_cdd5bf8c9a3d6fa3",
+      "source_rows": [
+        66
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_d2ad9c2a17a4ef46",
+      "source_rows": [
+        91
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_d37095e7305a1232",
+      "source_rows": [
+        8
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_d6b0d02cf3c97217",
+      "source_rows": [
+        51
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_d968642e40d31b9c",
+      "source_rows": [
+        83
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_dc68d5b4e798cb8c",
+      "source_rows": [
+        48
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_e149dabd2270538a",
+      "source_rows": [
+        19
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_eac798b927f63159",
+      "source_rows": [
+        120
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_ebdebb2d54acf86a",
+      "source_rows": [
+        14
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_ee4fb367f514caa1",
+      "source_rows": [
+        92
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f2a24603450e51f5",
+      "source_rows": [
+        144
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f2f21fa24751893b",
+      "source_rows": [
+        70
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f4244e5535002182",
+      "source_rows": [
+        30
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f5867f766bd9fd04",
+      "source_rows": [
+        121
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f603ed08e50721c5",
+      "source_rows": [
+        132
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f87613459cde593c",
+      "source_rows": [
+        80
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_f8c16d086ba13d74",
+      "source_rows": [
+        53
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_fc0fe87b4170e67e",
+      "source_rows": [
+        54
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_fd37c870403e0057",
+      "source_rows": [
+        86
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    },
+    {
+      "id": "faq_fe43c22137515d71",
+      "source_rows": [
+        3
+      ],
+      "flags": [
+        "fictional_bank_claim"
+      ]
+    }
+  ],
+  "limitations": [
+    "Synthetic educational content; not verified policies of a real bank.",
+    "Different answers to the same question are retained and flagged, not declared contradictions.",
+    "Heuristic review flags are not a complete factual or contradiction check.",
+    "Source row numbers count CSV data records starting at 1, excluding the header."
+  ]
+}

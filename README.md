@@ -1,4 +1,38 @@
-# AI Studio Challenge Project Title
+# Governed Prompt Gateway
+
+## Local banking chatbot foundation
+
+Dataset preparation and FAQ retrieval are implemented in `banking_chatbot/`.
+They run locally with no model, API key, or cloud account. The source Kaggle CSV
+is included, along with 144 cleaned question/answer records and quality reports.
+
+From the project folder, using Python 3.13:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m banking_chatbot prepare
+python -m banking_chatbot search "How do I activate my debit card?"
+python -m banking_chatbot evaluate
+python -m unittest discover -s tests -v
+```
+
+The project already has a local `.venv` with dependencies installed in this checkout.
+Activate it to skip installation. After installation, all commands work offline.
+
+- [Implementation and usage](docs/banking-chatbot.md)
+- [Dataset provenance and license](data/banking/README.md)
+- [Generated quality report](reports/banking_data_quality.md)
+- [Manual source review](reports/banking_source_review.md)
+- [Retrieval development results](reports/retrieval_dev.json)
+
+Search returns reference records and similarity scores, not an LLM-generated answer.
+This is synthetic educational data, not the policies or contact details of a real bank.
+
+---
+
+## Original project README template
 
 > 💡 **Note for the team:** This is just a template. Update the above title with your AI Studio Challenge Project name. Remove all guidance notes and example text in this template and populate this README with your own content. You can work on this README throughout AI Studio, and get feedback from your AI Studio Coach and Challenge Advisor before finalizing it.  
 
