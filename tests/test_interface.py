@@ -11,6 +11,15 @@ from banking_chatbot.data import ROOT
 
 
 class InterfaceTests(unittest.TestCase):
+    def setUp(self):
+        # Never let a developer's configured credential affect UI tests.
+        settings = patch("banking_chatbot.interface.local_settings", return_value=("", "gemini-2.5-flash-lite"))
+        settings.start()
+        self.addCleanup(settings.stop)
+        network = patch("banking_chatbot.gemini.requests.post", side_effect=AssertionError("Unexpected live API call in UI test"))
+        network.start()
+        self.addCleanup(network.stop)
+
     def app(self):
         app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=15).run()
         self.assertFalse(app.exception)
@@ -69,6 +78,30 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(len(app.chat_input), 0)
         self.assertTrue(any("could not be loaded" in error.value for error in app.error))
         self.assertTrue(any("banking_chatbot prepare" in code.value for code in app.code))
+
+    @patch("banking_chatbot.chat.generate_answer")
+    def test_gemini_answer_survives_rerun_and_disconnect_clears_session(self, generate):
+        generate.return_value = {
+            "status": "generated", "answer": "In this demo, use the banking app.",
+            "model": "gemini-2.5-flash-lite", "source_ids": ["test"],
+            "usage": {"input_tokens": 100, "output_tokens": 12, "total_tokens": 112},
+            "finish_reason": "STOP", "elapsed_ms": 80,
+        }
+        app = self.app()
+        self.assertTrue(app.toggle(key="use_gemini").disabled)
+        app.text_input(key="gemini_key").set_value("fake-session-key").run()
+        app.toggle(key="use_gemini").set_value(True).run()
+        app.chat_input[0].set_value("How do I change my PIN?").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("In this demo" in item.value for item in app.markdown))
+        self.assertTrue(any("Input tokens: 100" in item.value for item in app.caption))
+        app.run()
+        generate.assert_called_once()
+        self.assertNotIn("fake-session-key", str(app.session_state["turns"]))
+        app.button(key="disconnect_gemini").click().run()
+        self.assertEqual(app.session_state["gemini_key"], "")
+        self.assertFalse(app.session_state["use_gemini"])
+        self.assertEqual(app.session_state["turns"], [])
 
 
 if __name__ == "__main__":

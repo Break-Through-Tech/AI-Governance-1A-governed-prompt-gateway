@@ -1,13 +1,14 @@
-"""A session-local chat view of the existing retriever; no model or generated text."""
+"""Session-local banking chat with retrieval and optional Gemini generation."""
 
 import hashlib
 import re
 from pathlib import Path
-from time import perf_counter
 
 import streamlit as st
 
 from .data import DEFAULT_CLEAN
+from .chat import chat
+from .gemini import DEFAULT_MODEL, SUPPORTED_MODELS, GenerationError, local_settings
 from .retrieval import DEFAULT_THRESHOLD, Retriever
 
 EXAMPLES = {
@@ -37,15 +38,40 @@ def reset_chat() -> None:
     st.session_state["turns"] = []
 
 
+def disconnect_gemini() -> None:
+    st.session_state["gemini_key"] = ""
+    st.session_state["use_gemini"] = False
+    st.session_state["use_local_key"] = False
+    reset_chat()
+
+
 def render_result(turn: dict) -> None:
     result = turn["result"]
     with st.chat_message("assistant", avatar=":material/search:"):
+        generation = turn.get("generation")
+        if generation:
+            if generation["status"] == "generated":
+                st.markdown("**Gemini answer**")
+                st.markdown(plain_markdown(generation["answer"]))
+                usage = generation["usage"]
+                input_tokens = usage["input_tokens"] if usage["input_tokens"] is not None else "unavailable"
+                output_tokens = usage["output_tokens"] if usage["output_tokens"] is not None else "unavailable"
+                st.caption(
+                    f"{generation['model']} · Input tokens: {input_tokens} · "
+                    f"Output tokens: {output_tokens} · Generation: {generation['elapsed_ms'] / 1000:.1f} s"
+                )
+                if generation["finish_reason"] == "MAX_TOKENS":
+                    st.warning("This answer reached the response-length limit and may be incomplete.")
+                st.caption("AI-generated from the references below. Check the sources; this is fictional banking information.")
+                st.divider()
+            else:
+                st.warning(generation["message"])
         if not result["matches"]:
             st.info(result["message"])
         else:
             count = len(result["matches"])
             st.markdown(f"**{count} matching reference{'s' if count != 1 else ''}**")
-            st.caption("These are answers from the dataset, shown without an LLM rewrite.")
+            st.caption("Original dataset answers, shown without rewriting.")
             for rank, match in enumerate(result["matches"], start=1):
                 with st.container(border=True):
                     st.caption(f"MATCH {rank} · Similarity {match['score']:.3f} / 1.000")
@@ -68,12 +94,38 @@ def main() -> None:
     st.set_page_config(page_title="Banking help desk", page_icon="🏦", layout="centered")
     st.session_state.setdefault("turns", [])
     st.title("Banking help desk")
-    st.caption("Synthetic banking demo · Retrieval only")
+    st.caption("Synthetic banking demo · Local retrieval + optional Gemini answers")
 
     with st.sidebar:
         st.header("Your conversation")
         st.button("Reset chat", key="reset_chat", on_click=reset_chat, use_container_width=True)
-        st.caption("History stays in this browser session. Each question is searched independently.")
+        st.caption("History stays in this browser session. Retrieval searches each question independently.")
+        st.divider()
+        st.subheader("Gemini connection")
+        try:
+            configured_key, configured_model = local_settings()
+        except GenerationError as exc:
+            st.warning(str(exc))
+            configured_key, configured_model = "", DEFAULT_MODEL
+        entered_key = st.text_input("Gemini API key", type="password", key="gemini_key",
+                                    help="Kept only in this session. It is not saved to files or chat history.")
+        use_local = False
+        if configured_key:
+            use_local = st.checkbox("Use local configured key", key="use_local_key", value=False)
+        api_key = entered_key.strip() or (configured_key if use_local else "")
+        st.button("Disconnect Gemini", key="disconnect_gemini", on_click=disconnect_gemini,
+                  help="Clears the session key and chat, and disables AI answers. A configured local key stays on disk.")
+        model = st.selectbox("Gemini model", SUPPORTED_MODELS,
+                             index=SUPPORTED_MODELS.index(configured_model), key="gemini_model")
+        enabled = st.toggle("Generate answers with Gemini", key="use_gemini", disabled=not api_key)
+        use_gemini = bool(api_key) and enabled
+        if not api_key:
+            st.caption("No key configured for this session. Retrieval remains available.")
+        st.caption("When enabled, your question, retrieved references, and up to 3 recent AI exchanges are sent to Google.")
+        with st.expander("Free API setup"):
+            st.markdown("[Create a Gemini key in Google AI Studio](https://aistudio.google.com/api-keys)")
+            st.caption("Use a project on the Free tier. Billing and quota follow your Google project; the app cannot enforce free billing. No automatic model switch or billing upgrade is performed.")
+            st.caption("Google may use free-tier content to improve its products. Use synthetic test questions.")
         st.divider()
         st.subheader("About this demo")
         st.write("Search sample banking questions and see the original answers with their sources.")
@@ -110,12 +162,12 @@ def main() -> None:
             st.warning("Please enter a banking question.")
         else:
             try:
-                started = perf_counter()
-                result = retriever.search(submitted, top_k=top_k, threshold=threshold)
-                turn = {
-                    "query": submitted, "result": result, "top_k": top_k,
-                    "elapsed_ms": (perf_counter() - started) * 1000,
-                }
+                with st.spinner("Generating a Gemini answer…" if use_gemini else "Searching references…"):
+                    turn = chat(
+                        submitted, st.session_state["turns"], retriever=retriever,
+                        api_key=api_key, use_gemini=use_gemini, model=model,
+                        top_k=top_k, threshold=threshold,
+                    )
             except (OSError, ValueError):
                 st.error("This search could not be completed. Please try another question.")
             else:

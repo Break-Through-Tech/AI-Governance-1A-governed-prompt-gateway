@@ -3,4 +3,10 @@
 __pycache__/
 *.py[cod]
 .env
+.streamlit/secrets.toml
 .DS_Store
+
+# Generated document staging and render QA artifacts
+output/
+tmp/
+docs/*_final/
