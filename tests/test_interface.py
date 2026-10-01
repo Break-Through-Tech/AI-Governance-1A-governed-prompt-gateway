@@ -1,17 +1,21 @@
 """Exercise real Streamlit chat state and the local retriever together."""
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
+from banking_chatbot.cache import SQLiteResponseCache
 from banking_chatbot.data import ROOT
 
 
 class InterfaceTests(unittest.TestCase):
     def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
         # Never let a developer's configured credential affect UI tests.
         settings = patch("banking_chatbot.interface.local_settings", return_value=("", "gemini-2.5-flash-lite"))
         settings.start()
@@ -19,6 +23,10 @@ class InterfaceTests(unittest.TestCase):
         network = patch("banking_chatbot.gemini.requests.post", side_effect=AssertionError("Unexpected live API call in UI test"))
         network.start()
         self.addCleanup(network.stop)
+        response_cache = SQLiteResponseCache(Path(self.temp.name) / "cache.sqlite3")
+        cache = patch("banking_chatbot.interface.get_response_cache", return_value=response_cache)
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def app(self):
         app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=15).run()
@@ -81,12 +89,15 @@ class InterfaceTests(unittest.TestCase):
 
     @patch("banking_chatbot.chat.generate_answer")
     def test_gemini_answer_survives_rerun_and_disconnect_clears_session(self, generate):
-        generate.return_value = {
-            "status": "generated", "answer": "In this demo, use the banking app.",
-            "model": "gemini-2.5-flash-lite", "source_ids": ["test"],
-            "usage": {"input_tokens": 100, "output_tokens": 12, "total_tokens": 112},
-            "finish_reason": "STOP", "elapsed_ms": 80,
-        }
+        def answer(_query, matches, _history, _key, model):
+            return {
+                "status": "generated", "answer": "In this demo, use the banking app.",
+                "model": model, "source_ids": [match["id"] for match in matches[:5]],
+                "usage": {"input_tokens": 100, "output_tokens": 12, "total_tokens": 112},
+                "finish_reason": "STOP", "elapsed_ms": 80,
+            }
+
+        generate.side_effect = answer
         app = self.app()
         self.assertTrue(app.toggle(key="use_gemini").disabled)
         app.text_input(key="gemini_key").set_value("fake-session-key").run()
@@ -95,9 +106,14 @@ class InterfaceTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertTrue(any("In this demo" in item.value for item in app.markdown))
         self.assertTrue(any("Input tokens: 100" in item.value for item in app.caption))
+        self.assertTrue(any("Response cache: miss" in item.value for item in app.caption))
         app.run()
         generate.assert_called_once()
         self.assertNotIn("fake-session-key", str(app.session_state["turns"]))
+        app.button(key="reset_chat").click().run()
+        app.chat_input[0].set_value("How do I change my PIN?").run()
+        generate.assert_called_once()
+        self.assertTrue(any("Exact cache hit" in item.value for item in app.success))
         app.button(key="disconnect_gemini").click().run()
         self.assertEqual(app.session_state["gemini_key"], "")
         self.assertFalse(app.session_state["use_gemini"])

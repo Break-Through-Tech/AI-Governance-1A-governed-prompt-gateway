@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
+from banking_chatbot.cache import CacheStatus, SQLiteResponseCache
 from banking_chatbot.chat import chat
 from banking_chatbot.gemini import (
     DEFAULT_MODEL, MAX_OUTPUT_TOKENS, GenerationError, build_payload,
@@ -142,6 +143,112 @@ class GeminiTests(unittest.TestCase):
             path.write_text('GEMINI_API_KEY = INVALID')
             with self.assertRaises(GenerationError):
                 local_settings(path)
+
+    @patch("banking_chatbot.chat.generate_answer")
+    def test_repeated_identical_scope_uses_exact_cache(self, generate):
+        def answer(_query, matches, _history, _key, model):
+            return {
+                "status": "generated", "answer": "Use the banking app.", "model": model,
+                "source_ids": [match["id"] for match in matches[:5]],
+                "usage": {"input_tokens": 100, "output_tokens": 12, "total_tokens": 112},
+                "finish_reason": "STOP", "elapsed_ms": 80,
+            }
+
+        generate.side_effect = answer
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = SQLiteResponseCache(Path(tmp) / "cache.sqlite3")
+            retriever = Retriever()
+            first = chat(
+                "How do I change my PIN?", [], retriever=retriever,
+                use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+            second = chat(
+                "How do I change my PIN?", [], retriever=retriever,
+                use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+        self.assertEqual(first["cache"]["status"], CacheStatus.MISS.value)
+        self.assertEqual(second["cache"]["status"], CacheStatus.HIT.value)
+        self.assertEqual(second["generation"]["answer"], "Use the banking app.")
+        self.assertEqual(generate.call_count, 1)
+
+    @patch("banking_chatbot.chat.generate_answer")
+    def test_cache_scope_changes_and_policy_bypasses_do_not_reuse(self, generate):
+        def answer(_query, matches, _history, _key, model):
+            return {
+                "status": "generated", "answer": "Demo answer", "model": model,
+                "source_ids": [match["id"] for match in matches[:5]],
+                "usage": {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+                "finish_reason": "STOP", "elapsed_ms": 10,
+            }
+
+        generate.side_effect = answer
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = SQLiteResponseCache(Path(tmp) / "cache.sqlite3")
+            retriever = Retriever()
+            chat(
+                "How do I change my PIN?", [], retriever=retriever,
+                use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+            changed_model = chat(
+                "How do I change my PIN?", [], retriever=retriever,
+                use_gemini=True, api_key=FAKE_KEY, model="gemini-2.5-flash", cache=cache,
+            )
+            changed_context = chat(
+                "How do I change my PIN?",
+                [{"query": "Earlier question", "generation": {
+                    "status": "generated", "answer": "Earlier answer",
+                }}],
+                retriever=retriever, use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+            personalized = chat(
+                "How can I check my account balance?", [], retriever=retriever,
+                use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+        self.assertEqual(changed_model["cache"]["status"], CacheStatus.MISS.value)
+        self.assertEqual(changed_context["cache"]["status"], CacheStatus.MISS.value)
+        self.assertEqual(personalized["cache"]["status"], CacheStatus.BYPASS.value)
+        self.assertIn("account-specific", personalized["cache"]["reason"])
+        self.assertEqual(generate.call_count, 4)
+
+    @patch("banking_chatbot.chat.generate_answer")
+    def test_truncated_generation_is_not_cached(self, generate):
+        generate.return_value = {
+            "status": "generated", "answer": "Partial answer", "model": DEFAULT_MODEL,
+            "source_ids": [], "usage": {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+            "finish_reason": "MAX_TOKENS", "elapsed_ms": 10,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = SQLiteResponseCache(Path(tmp) / "cache.sqlite3")
+            retriever = Retriever()
+            turns = [
+                chat(
+                    "How do I change my PIN?", [], retriever=retriever,
+                    use_gemini=True, api_key=FAKE_KEY, cache=cache,
+                )
+                for _ in range(2)
+            ]
+        self.assertEqual(generate.call_count, 2)
+        self.assertTrue(all(turn["cache"]["status"] == CacheStatus.MISS.value for turn in turns))
+        self.assertTrue(all("not stored" in turn["cache"]["reason"] for turn in turns))
+
+    @patch("banking_chatbot.chat.generate_answer")
+    def test_cache_failure_falls_back_to_generation(self, generate):
+        generate.return_value = {
+            "status": "generated", "answer": "Fresh answer", "model": DEFAULT_MODEL,
+            "source_ids": [], "usage": {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+            "finish_reason": "STOP", "elapsed_ms": 10,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "not-a-directory"
+            blocker.write_text("file")
+            cache = SQLiteResponseCache(blocker / "cache.sqlite3")
+            turn = chat(
+                "How do I change my PIN?", [], retriever=Retriever(),
+                use_gemini=True, api_key=FAKE_KEY, cache=cache,
+            )
+        self.assertEqual(turn["cache"]["status"], CacheStatus.ERROR.value)
+        self.assertEqual(turn["generation"]["answer"], "Fresh answer")
+        generate.assert_called_once()
 
 
 if __name__ == "__main__":

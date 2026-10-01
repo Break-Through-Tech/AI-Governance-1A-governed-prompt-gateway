@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from .cache import SQLiteResponseCache, cache_metrics
 from .data import DEFAULT_CLEAN
 from .chat import chat
 from .gemini import DEFAULT_MODEL, SUPPORTED_MODELS, GenerationError, local_settings
@@ -34,6 +35,11 @@ def load_retriever(knowledge_path: str, content_digest: str) -> Retriever:
     return Retriever(Path(knowledge_path))
 
 
+@st.cache_resource(show_spinner=False)
+def get_response_cache() -> SQLiteResponseCache:
+    return SQLiteResponseCache()
+
+
 def reset_chat() -> None:
     st.session_state["turns"] = []
 
@@ -56,9 +62,10 @@ def render_result(turn: dict) -> None:
                 usage = generation["usage"]
                 input_tokens = usage["input_tokens"] if usage["input_tokens"] is not None else "unavailable"
                 output_tokens = usage["output_tokens"] if usage["output_tokens"] is not None else "unavailable"
+                timing_label = "Original generation" if turn.get("cache", {}).get("status") == "hit" else "Generation"
                 st.caption(
                     f"{generation['model']} · Input tokens: {input_tokens} · "
-                    f"Output tokens: {output_tokens} · Generation: {generation['elapsed_ms'] / 1000:.1f} s"
+                    f"Output tokens: {output_tokens} · {timing_label}: {generation['elapsed_ms'] / 1000:.1f} s"
                 )
                 if generation["finish_reason"] == "MAX_TOKENS":
                     st.warning("This answer reached the response-length limit and may be incomplete.")
@@ -66,6 +73,17 @@ def render_result(turn: dict) -> None:
                 st.divider()
             else:
                 st.warning(generation["message"])
+        cache = turn.get("cache") or {}
+        cache_status = cache.get("status")
+        if cache_status == "hit":
+            st.success(
+                f"Exact cache hit · {cache.get('tokens_saved', 0)} tokens and "
+                f"{cache.get('latency_saved_ms', 0) / 1000:.1f} s of generation avoided"
+            )
+        elif cache_status == "error":
+            st.warning(f"Cache unavailable · {cache.get('reason', 'Generation continued without cache reuse.')}")
+        elif cache_status in {"miss", "stale", "bypass"}:
+            st.caption(f"Response cache: {cache_status} · {cache.get('reason', '')}")
         if not result["matches"]:
             st.info(result["message"])
         else:
@@ -126,6 +144,22 @@ def main() -> None:
             st.markdown("[Create a Gemini key in Google AI Studio](https://aistudio.google.com/api-keys)")
             st.caption("Use a project on the Free tier. Billing and quota follow your Google project; the app cannot enforce free billing. No automatic model switch or billing upgrade is performed.")
             st.caption("Google may use free-tier content to improve its products. Use synthetic test questions.")
+        metrics = cache_metrics(st.session_state["turns"])
+        st.divider()
+        st.subheader("Response cache")
+        cache_columns = st.columns(2)
+        cache_columns[0].metric("Exact hits", metrics["exact_hits"])
+        cache_columns[1].metric("Eligible hit rate", f"{metrics['eligible_hit_rate']:.0%}")
+        st.caption(
+            f"Eligible lookups: {metrics['eligible_lookups']} · Misses: {metrics['misses']} · "
+            f"Bypasses: {metrics['bypasses']} · Stale: {metrics['stale']} · Errors: {metrics['errors']}"
+        )
+        st.caption(
+            f"Avoided: {metrics['tokens_avoided']} tokens and "
+            f"{metrics['generation_latency_avoided_ms'] / 1000:.1f} s generation latency. "
+            "Estimated cost avoided is unavailable until a versioned price model is configured."
+        )
+        st.caption("The temporary banking-demo policy caches only stable, retrieval-backed general FAQs.")
         st.divider()
         st.subheader("About this demo")
         st.write("Search sample banking questions and see the original answers with their sources.")
@@ -163,10 +197,11 @@ def main() -> None:
         else:
             try:
                 with st.spinner("Generating a Gemini answer…" if use_gemini else "Searching references…"):
+                    response_cache = get_response_cache() if use_gemini else None
                     turn = chat(
                         submitted, st.session_state["turns"], retriever=retriever,
                         api_key=api_key, use_gemini=use_gemini, model=model,
-                        top_k=top_k, threshold=threshold,
+                        top_k=top_k, threshold=threshold, cache=response_cache,
                     )
             except (OSError, ValueError):
                 st.error("This search could not be completed. Please try another question.")
