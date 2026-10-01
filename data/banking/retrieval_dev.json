@@ -1,0 +1,22 @@
+[
+  {"query": "Where can I see my account balance?", "expected_source_rows": [3]},
+  {"query": "I lost my debit card. How can I report it?", "expected_source_rows": [6, 129]},
+  {"query": "I forgot my online banking password", "expected_source_rows": [7, 127]},
+  {"query": "How can I change the PIN?", "expected_source_rows": [40]},
+  {"query": "How do I cancel a scheduled payment?", "expected_source_rows": [52]},
+  {"query": "Where do I download account statements?", "expected_source_rows": [19, 56, 130]},
+  {"query": "I want to apply for a car loan", "expected_source_rows": [30, 120]},
+  {"query": "Can I deposit a check with my mobile?", "expected_source_rows": [31]},
+  {"query": "How do I update my mailing address?", "expected_source_rows": [93]},
+  {"query": "What are the branch opening hours?", "expected_source_rows": [26]},
+  {"query": "I need to activate my new debit card", "expected_source_rows": [67]},
+  {"query": "How do I send money abroad?", "expected_source_rows": [80]},
+  {"query": "Hello", "expected_source_rows": [144]},
+  {"query": "Where can I access tax documents?", "expected_source_rows": [104]},
+  {"query": "Give me a recipe for chocolate cake", "expected_source_rows": []},
+  {"query": "What is the weather in Tokyo?", "expected_source_rows": []},
+  {"query": "Write a Python sorting function", "expected_source_rows": []},
+  {"query": "Explain quantum entanglement", "expected_source_rows": []},
+  {"query": "What is the routing number of your bank?", "expected_source_rows": []},
+  {"query": "How do I open a cryptocurrency margin account?", "expected_source_rows": []}
+]
