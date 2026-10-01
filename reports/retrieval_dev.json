@@ -1,0 +1,487 @@
+{
+  "purpose": "Development-set threshold calibration only; these cases are not an independent test set.",
+  "knowledge_sha256": "10a70815837a60f53b5e5b720997c0d2032ad9148c9d5e2aa9fa16ab2c3dc7f6",
+  "cases_sha256": "75398c9f5c443877134484ead914d8e8b75e27e1665ad355b6ff5c378ec5d002",
+  "retrieval": "Question-only word unigram/bigram TF-IDF, English stop words, cosine similarity, top 3",
+  "selection_rule": "Maximize mean(supported recall@3, unsupported rejection); ties prefer rejection, then lower threshold.",
+  "default_metrics": {
+    "threshold": 0.5,
+    "supported_cases": 14,
+    "unsupported_cases": 6,
+    "supported_top_1_accuracy": 0.8571428571428571,
+    "supported_recall_at_3": 0.8571428571428571,
+    "unsupported_rejection_rate": 1.0,
+    "balanced_score": 0.9285714285714286
+  },
+  "recommended_threshold": 0.5,
+  "threshold_sweep": [
+    {
+      "threshold": 0.1,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.15,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.2,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.25,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.3,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.35,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.6666666666666666,
+      "balanced_score": 0.7976190476190477
+    },
+    {
+      "threshold": 0.4,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.9285714285714286,
+      "unsupported_rejection_rate": 0.8333333333333334,
+      "balanced_score": 0.8809523809523809
+    },
+    {
+      "threshold": 0.45,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.8571428571428571,
+      "unsupported_rejection_rate": 0.8333333333333334,
+      "balanced_score": 0.8452380952380952
+    },
+    {
+      "threshold": 0.5,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.8571428571428571,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.9285714285714286
+    },
+    {
+      "threshold": 0.55,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.8571428571428571,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.9285714285714286
+    },
+    {
+      "threshold": 0.6,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.8571428571428571,
+      "supported_recall_at_3": 0.8571428571428571,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.9285714285714286
+    },
+    {
+      "threshold": 0.65,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.7857142857142857,
+      "supported_recall_at_3": 0.7857142857142857,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.8928571428571428
+    },
+    {
+      "threshold": 0.7,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.7142857142857143,
+      "supported_recall_at_3": 0.7142857142857143,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.8571428571428572
+    },
+    {
+      "threshold": 0.75,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.7142857142857143,
+      "supported_recall_at_3": 0.7142857142857143,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.8571428571428572
+    },
+    {
+      "threshold": 0.8,
+      "supported_cases": 14,
+      "unsupported_cases": 6,
+      "supported_top_1_accuracy": 0.5714285714285714,
+      "supported_recall_at_3": 0.5714285714285714,
+      "unsupported_rejection_rate": 1.0,
+      "balanced_score": 0.7857142857142857
+    }
+  ],
+  "cases_at_default": [
+    {
+      "query": "Where can I see my account balance?",
+      "expected_source_rows": [
+        3
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_fe43c22137515d71",
+          "source_rows": [
+            3
+          ],
+          "score": 0.763319
+        }
+      ]
+    },
+    {
+      "query": "I lost my debit card. How can I report it?",
+      "expected_source_rows": [
+        6,
+        129
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_ccd12f023d08329d",
+          "source_rows": [
+            6
+          ],
+          "score": 0.693487
+        }
+      ]
+    },
+    {
+      "query": "I forgot my online banking password",
+      "expected_source_rows": [
+        7,
+        127
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_0b1a4c067e853ee9",
+          "source_rows": [
+            127
+          ],
+          "score": 0.81856
+        },
+        {
+          "id": "faq_76d9ce7cd9a0c4ab",
+          "source_rows": [
+            7
+          ],
+          "score": 0.81856
+        },
+        {
+          "id": "faq_99bfcb6e51bba999",
+          "source_rows": [
+            35
+          ],
+          "score": 0.551097
+        }
+      ]
+    },
+    {
+      "query": "How can I change the PIN?",
+      "expected_source_rows": [
+        40
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_f5aefc5065c38c1a",
+          "source_rows": [
+            40
+          ],
+          "score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "How do I cancel a scheduled payment?",
+      "expected_source_rows": [
+        52
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_117a982a1032298c",
+          "source_rows": [
+            52
+          ],
+          "score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "Where do I download account statements?",
+      "expected_source_rows": [
+        19,
+        56,
+        130
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_1759d419e14adcfc",
+          "source_rows": [
+            130
+          ],
+          "score": 0.775103
+        },
+        {
+          "id": "faq_9175117b3e65ef9b",
+          "source_rows": [
+            56
+          ],
+          "score": 0.627413
+        }
+      ]
+    },
+    {
+      "query": "I want to apply for a car loan",
+      "expected_source_rows": [
+        30,
+        120
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_eac798b927f63159",
+          "source_rows": [
+            120
+          ],
+          "score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "Can I deposit a check with my mobile?",
+      "expected_source_rows": [
+        31
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_6e58edbcc9ef5ab3",
+          "source_rows": [
+            31
+          ],
+          "score": 0.613711
+        }
+      ]
+    },
+    {
+      "query": "How do I update my mailing address?",
+      "expected_source_rows": [
+        93
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_d4a077d2a5c815d5",
+          "source_rows": [
+            93
+          ],
+          "score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "What are the branch opening hours?",
+      "expected_source_rows": [
+        26
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_8a9033a68c3e364e",
+          "source_rows": [
+            26
+          ],
+          "score": 0.805865
+        }
+      ]
+    },
+    {
+      "query": "I need to activate my new debit card",
+      "expected_source_rows": [
+        67
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_ea3ce20f2338b37b",
+          "source_rows": [
+            67
+          ],
+          "score": 0.911231
+        },
+        {
+          "id": "faq_dd26f007ce82f430",
+          "source_rows": [
+            115
+          ],
+          "score": 0.601411
+        },
+        {
+          "id": "faq_06273575e42bc772",
+          "source_rows": [
+            16,
+            97
+          ],
+          "score": 0.503216
+        }
+      ]
+    },
+    {
+      "query": "How do I send money abroad?",
+      "expected_source_rows": [
+        80
+      ],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "Hello",
+      "expected_source_rows": [
+        144
+      ],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "Where can I access tax documents?",
+      "expected_source_rows": [
+        104
+      ],
+      "status": "matched",
+      "top_1_correct": true,
+      "top_3_correct": true,
+      "matches": [
+        {
+          "id": "faq_943f39d25e9e581e",
+          "source_rows": [
+            104
+          ],
+          "score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "Give me a recipe for chocolate cake",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "What is the weather in Tokyo?",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "Write a Python sorting function",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "Explain quantum entanglement",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "What is the routing number of your bank?",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    },
+    {
+      "query": "How do I open a cryptocurrency margin account?",
+      "expected_source_rows": [],
+      "status": "no_match",
+      "top_1_correct": false,
+      "top_3_correct": false,
+      "matches": []
+    }
+  ],
+  "limitations": [
+    "Tiny manually authored development set; results do not establish general chatbot quality.",
+    "Lexical overlap can accept unsupported queries, and synonyms can miss relevant answers.",
+    "Retrieval is not a safety classifier or proof that a question can be answered.",
+    "Expected matches refer to 1-based data record numbers in the supplied Kaggle CSV."
+  ]
+}
