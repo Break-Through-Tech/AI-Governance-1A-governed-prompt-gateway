@@ -5,6 +5,7 @@ from time import perf_counter
 from .cache import (
     CacheAudit,
     CacheContext,
+    CacheMode,
     CacheStatus,
     ResponseCache,
     SourceFingerprint,
@@ -36,6 +37,7 @@ def _cache_context(
     history: list[dict],
     retriever: Retriever,
     model: str,
+    embedding_model_version: str | None = None,
 ) -> CacheContext:
     sources = tuple(
         SourceFingerprint(
@@ -55,6 +57,7 @@ def _cache_context(
         model=model,
         generation_settings_digest=stable_digest(GENERATION_CONFIG),
         conversation_context_digest=stable_digest(recent_conversation(history)),
+        embedding_model_version=embedding_model_version,
     )
 
 
@@ -73,7 +76,12 @@ def _with_reason(audit: CacheAudit, reason: str) -> CacheAudit:
 def chat(message: str, history: list[dict], *, retriever: Retriever,
          api_key: str = "", use_gemini: bool = False, model: str = DEFAULT_MODEL,
          top_k: int = 3, threshold: float = DEFAULT_THRESHOLD,
-         cache: ResponseCache | None = None) -> dict:
+         cache: ResponseCache | None = None,
+         cache_mode: CacheMode | str = CacheMode.EXACT) -> dict:
+    try:
+        mode = cache_mode if isinstance(cache_mode, CacheMode) else CacheMode(cache_mode)
+    except ValueError as error:
+        raise ValueError("cache_mode is invalid.") from error
     started = perf_counter()
     normalized_message = normalize(message)
     query_eligibility = classify_cache_query(
@@ -106,15 +114,48 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
     lookup = None
     if not eligibility.cacheable:
         turn["cache"] = _bypass(eligibility.reason).to_dict()
+    elif mode is CacheMode.OFF:
+        turn["cache"] = _bypass("Response caching is disabled by CACHE_MODE.").to_dict()
     elif cache is None:
         turn["cache"] = _bypass("Response caching is not configured.").to_dict()
     else:
-        context = _cache_context(result["query"], result["matches"], history, retriever, model)
+        embedder = getattr(cache, "embedder", None)
+        embedding_version = getattr(embedder, "version", None)
+        context = _cache_context(
+            result["query"], result["matches"], history, retriever, model,
+            embedding_model_version=embedding_version,
+        )
         lookup = cache.lookup_exact(context)
         turn["cache"] = lookup.audit.to_dict()
         if lookup.audit.status is CacheStatus.HIT:
             turn["generation"] = dict(lookup.generation or {})
             return turn
+        if mode in {CacheMode.SEMANTIC, CacheMode.SEMANTIC_SHADOW}:
+            semantic = cache.lookup_semantic(context)
+            lookup = semantic
+            turn["cache"] = semantic.audit.to_dict()
+            if semantic.audit.status is CacheStatus.HIT:
+                candidate_eligibility = is_cacheable(
+                    result["query"],
+                    result["matches"],
+                    policy_classification=TEMPORARY_POLICY_CLASSIFICATION,
+                    history_digest_included=True,
+                    generation=semantic.generation,
+                )
+                if candidate_eligibility.cacheable and mode is CacheMode.SEMANTIC:
+                    turn["generation"] = dict(semantic.generation or {})
+                    return turn
+                if mode is CacheMode.SEMANTIC_SHADOW:
+                    turn["cache"] = CacheAudit(
+                        status=CacheStatus.MISS,
+                        reason="Semantic shadow candidate observed; fresh generation was used.",
+                    ).to_dict()
+                    turn["cache"]["semantic_shadow"] = semantic.audit.to_dict()
+                else:
+                    turn["cache"] = CacheAudit(
+                        status=CacheStatus.STALE,
+                        reason=f"Semantic candidate failed policy revalidation: {candidate_eligibility.reason}",
+                    ).to_dict()
 
     try:
         turn["generation"] = generate_answer(message, result["matches"], history, api_key, model)
@@ -122,7 +163,11 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
         turn["generation"] = {"status": "error", "message": str(exc), "model": model}
         return turn
 
-    if context is not None and lookup is not None and lookup.audit.status in {CacheStatus.MISS, CacheStatus.STALE}:
+    if (
+        context is not None
+        and lookup is not None
+        and turn["cache"].get("status") != CacheStatus.HIT.value
+    ):
         output_eligibility = is_cacheable(
             result["query"],
             result["matches"],
@@ -133,8 +178,14 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
         if output_eligibility.cacheable:
             cache.put(context, turn["generation"])
         else:
+            audit = lookup.audit
+            if audit.status is CacheStatus.HIT:
+                audit = CacheAudit(
+                    status=CacheStatus.MISS,
+                    reason="A fresh generation was required.",
+                )
             turn["cache"] = _with_reason(
-                lookup.audit,
+                audit,
                 f"Generated response was not stored: {output_eligibility.reason}",
             ).to_dict()
     return turn

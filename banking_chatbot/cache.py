@@ -7,6 +7,7 @@ policy, auditable lookup result, and local SQLite implementation.
 import math
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import time
@@ -20,12 +21,17 @@ from pathlib import Path
 from threading import RLock
 from typing import Callable
 
+import numpy as np
+
 from .data import ROOT
+from .embeddings import Embedder, validate_embeddings
 
 
 DEFAULT_CACHE_PATH = ROOT / "var/response_cache.sqlite3"
 DEFAULT_TTL_SECONDS = 24 * 60 * 60
 DEFAULT_MAX_ENTRIES = 1_000
+DEFAULT_SEMANTIC_THRESHOLD = 0.90
+DEFAULT_SEMANTIC_MARGIN = 0.05
 TEMPORARY_CACHE_POLICY_VERSION = "banking-demo-cache-policy-v1"
 TEMPORARY_POLICY_CLASSIFICATION = "temporary-banking-demo-allow"
 
@@ -68,6 +74,40 @@ class CacheMatchType(str, Enum):
 
     EXACT = "exact"
     SEMANTIC = "semantic"
+
+
+class CacheMode(str, Enum):
+    """Runtime modes for staged semantic-cache rollout."""
+
+    OFF = "off"
+    EXACT = "exact"
+    SEMANTIC_SHADOW = "semantic-shadow"
+    SEMANTIC = "semantic"
+
+
+def configured_cache_mode(value: str | None = None) -> CacheMode:
+    """Read and validate CACHE_MODE, defaulting to the safe exact-only mode."""
+
+    raw = value if value is not None else os.getenv("CACHE_MODE", CacheMode.EXACT.value)
+    try:
+        return CacheMode(raw.strip().casefold())
+    except (AttributeError, ValueError) as error:
+        choices = ", ".join(mode.value for mode in CacheMode)
+        raise ValueError(f"CACHE_MODE must be one of: {choices}.") from error
+
+
+def configured_semantic_settings() -> tuple[float, float]:
+    """Read conservative threshold and ambiguity margin from the environment."""
+
+    try:
+        threshold = float(os.getenv("SEMANTIC_CACHE_THRESHOLD", str(DEFAULT_SEMANTIC_THRESHOLD)))
+        margin = float(os.getenv("SEMANTIC_CACHE_MARGIN", str(DEFAULT_SEMANTIC_MARGIN)))
+    except ValueError as error:
+        raise ValueError("Semantic cache threshold and margin must be numbers.") from error
+    for name, value in (("threshold", threshold), ("margin", margin)):
+        if not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError(f"Semantic cache {name} must be between 0 and 1.")
+    return threshold, margin
 
 
 @dataclass(frozen=True)
@@ -422,6 +462,9 @@ class SQLiteResponseCache(ResponseCache):
         *,
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
         max_entries: int = DEFAULT_MAX_ENTRIES,
+        embedder: Embedder | None = None,
+        semantic_threshold: float = DEFAULT_SEMANTIC_THRESHOLD,
+        semantic_margin: float = DEFAULT_SEMANTIC_MARGIN,
         clock: Callable[[], float] = time.time,
     ):
         if (
@@ -435,9 +478,23 @@ class SQLiteResponseCache(ResponseCache):
             raise ValueError("max_entries must be a positive integer.")
         if not isinstance(path, Path):
             raise ValueError("path must be a pathlib.Path.")
+        for name, value in (
+            ("semantic_threshold", semantic_threshold),
+            ("semantic_margin", semantic_margin),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0 <= value <= 1
+            ):
+                raise ValueError(f"{name} must be a finite number between 0 and 1.")
         self.path = path
         self.ttl_seconds = float(ttl_seconds)
         self.max_entries = max_entries
+        self.embedder = embedder
+        self.semantic_threshold = float(semantic_threshold)
+        self.semantic_margin = float(semantic_margin)
         self._clock = clock
         self._lock = RLock()
         self._initialization_error = False
@@ -488,9 +545,27 @@ class SQLiteResponseCache(ResponseCache):
                 last_used_at REAL NOT NULL
             )
         """)
+        existing = {
+            row[1] for row in connection.execute("PRAGMA table_info(response_cache)").fetchall()
+        }
+        additions = {
+            "scope_fingerprint": "TEXT",
+            "embedding": "BLOB",
+            "embedding_dimensions": "INTEGER",
+            "embedding_model_version": "TEXT",
+        }
+        for column, declaration in additions.items():
+            if column not in existing:
+                connection.execute(
+                    f"ALTER TABLE response_cache ADD COLUMN {column} {declaration}"
+                )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS response_cache_last_used "
             "ON response_cache(last_used_at, created_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS response_cache_semantic_scope "
+            "ON response_cache(scope_fingerprint, embedding_model_version, expires_at)"
         )
 
     @staticmethod
@@ -589,10 +664,131 @@ class SQLiteResponseCache(ResponseCache):
             return self._error("Cache storage could not be read; generation should continue.")
 
     def lookup_semantic(self, context: CacheContext) -> CacheResult:
-        return CacheResult(CacheAudit(
-            status=CacheStatus.BYPASS,
-            reason="Semantic cache lookup is not enabled in phase 1.",
-        ))
+        if self.embedder is None:
+            return CacheResult(CacheAudit(
+                status=CacheStatus.BYPASS,
+                reason="No semantic embedder is configured.",
+            ))
+        if context.embedding_model_version != self.embedder.version:
+            return CacheResult(CacheAudit(
+                status=CacheStatus.BYPASS,
+                reason="The request embedding version does not match the configured embedder.",
+            ))
+        if self._initialization_error:
+            return self._error("Cache storage is unavailable; generation should continue.")
+
+        now = float(self._clock())
+        try:
+            query_vector = validate_embeddings(
+                self.embedder.embed([context.normalized_query]), 1,
+            )[0]
+            with self._lock, closing(self._connect()) as connection, connection:
+                connection.execute("DELETE FROM response_cache WHERE expires_at <= ?", (now,))
+                rows = connection.execute(
+                    "SELECT exact_key, entry_id, generation_json, total_tokens, "
+                    "generation_latency_ms, embedding, embedding_dimensions, "
+                    "source_ids_json, source_content_digest, model, system_prompt_version, "
+                    "policy_classification, policy_version, knowledge_base_digest, "
+                    "generation_settings_digest, conversation_context_digest, "
+                    "tenant_or_jurisdiction FROM response_cache "
+                    "WHERE scope_fingerprint = ? AND embedding_model_version = ? "
+                    "AND embedding IS NOT NULL AND exact_key != ? AND expires_at > ?",
+                    (
+                        scope_fingerprint(context),
+                        self.embedder.version,
+                        exact_key(context),
+                        now,
+                    ),
+                ).fetchall()
+                scored: list[tuple[float, tuple[object, ...]]] = []
+                for row in rows:
+                    dimensions = row[6]
+                    if not isinstance(dimensions, int) or dimensions != query_vector.shape[0]:
+                        continue
+                    candidate = np.frombuffer(row[5], dtype=np.float32)
+                    if candidate.shape != query_vector.shape or not np.all(np.isfinite(candidate)):
+                        continue
+                    score = float(np.dot(query_vector, candidate))
+                    if math.isfinite(score):
+                        scored.append((max(0.0, min(1.0, score)), row))
+
+                if not scored:
+                    return CacheResult(CacheAudit(
+                        status=CacheStatus.MISS,
+                        reason="No semantic candidate exists in this governed scope.",
+                    ))
+                scored.sort(key=lambda item: item[0], reverse=True)
+                best_score, best = scored[0]
+                second_score = scored[1][0] if len(scored) > 1 else 0.0
+                if best_score < self.semantic_threshold:
+                    return CacheResult(CacheAudit(
+                        status=CacheStatus.MISS,
+                        reason="The best semantic candidate was below the similarity threshold.",
+                        similarity=best_score,
+                    ))
+                if len(scored) > 1 and best_score - second_score < self.semantic_margin:
+                    return CacheResult(CacheAudit(
+                        status=CacheStatus.MISS,
+                        reason="Semantic candidates were too ambiguous to reuse safely.",
+                        similarity=best_score,
+                    ))
+
+                expected_scope = (
+                    _canonical_json([source.source_id for source in context.sources]),
+                    source_content_digest(context),
+                    context.model,
+                    context.system_prompt_version,
+                    context.policy_classification,
+                    context.policy_version,
+                    context.knowledge_base_digest,
+                    context.generation_settings_digest,
+                    context.conversation_context_digest,
+                    context.tenant_or_jurisdiction,
+                )
+                if best[7:] != expected_scope:
+                    connection.execute("DELETE FROM response_cache WHERE exact_key = ?", (best[0],))
+                    return CacheResult(CacheAudit(
+                        status=CacheStatus.STALE,
+                        entry_id=str(best[1]),
+                        reason="The semantic candidate failed scope revalidation and was removed.",
+                    ))
+                try:
+                    generation = _safe_generation(json.loads(str(best[2])))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    connection.execute("DELETE FROM response_cache WHERE exact_key = ?", (best[0],))
+                    return self._error("The semantic candidate was invalid and was removed.")
+                expected_source_ids = [source.source_id for source in context.sources]
+                if generation.get("model") != context.model or generation.get("source_ids") != expected_source_ids:
+                    connection.execute("DELETE FROM response_cache WHERE exact_key = ?", (best[0],))
+                    return CacheResult(CacheAudit(
+                        status=CacheStatus.STALE,
+                        entry_id=str(best[1]),
+                        reason="The semantic candidate failed generation revalidation and was removed.",
+                    ))
+                connection.execute(
+                    "UPDATE response_cache SET hit_count = hit_count + 1, last_used_at = ? "
+                    "WHERE exact_key = ?",
+                    (now, best[0]),
+                )
+            total_tokens, latency_ms = best[3], best[4]
+            return CacheResult(
+                CacheAudit(
+                    status=CacheStatus.HIT,
+                    match_type=CacheMatchType.SEMANTIC,
+                    entry_id=str(best[1]),
+                    similarity=best_score,
+                    reason="Constrained semantic match passed threshold, margin, and scope checks.",
+                    tokens_saved=total_tokens if isinstance(total_tokens, int) and total_tokens >= 0 else 0,
+                    latency_saved_ms=(
+                        latency_ms
+                        if isinstance(latency_ms, (int, float)) and math.isfinite(latency_ms) and latency_ms >= 0
+                        else 0.0
+                    ),
+                ),
+                generation,
+            )
+        except (OSError, sqlite3.Error, TypeError, ValueError, RuntimeError, OverflowError):
+            return self._error("Semantic lookup failed; generation should continue.")
 
     def put(self, context: CacheContext, generation: Mapping[str, object]) -> None:
         if self._initialization_error:
@@ -606,6 +802,23 @@ class SQLiteResponseCache(ResponseCache):
             latency_ms = _optional_nonnegative_number(safe.get("elapsed_ms"))
             now = float(self._clock())
             key = exact_key(context)
+            embedding_blob: bytes | None = None
+            embedding_dimensions: int | None = None
+            embedding_version: str | None = None
+            if (
+                self.embedder is not None
+                and context.embedding_model_version == self.embedder.version
+            ):
+                try:
+                    vector = validate_embeddings(
+                        self.embedder.embed([context.normalized_query]), 1,
+                    )[0]
+                    embedding_blob = vector.astype(np.float32, copy=False).tobytes()
+                    embedding_dimensions = int(vector.shape[0])
+                    embedding_version = self.embedder.version
+                except (TypeError, ValueError, RuntimeError):
+                    # Exact caching must remain available when embedding fails.
+                    pass
             values = (
                 key,
                 uuid.uuid4().hex,
@@ -630,6 +843,10 @@ class SQLiteResponseCache(ResponseCache):
                 now,
                 now + self.ttl_seconds,
                 now,
+                scope_fingerprint(context),
+                embedding_blob,
+                embedding_dimensions,
+                embedding_version,
             )
             with self._lock, closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -641,8 +858,9 @@ class SQLiteResponseCache(ResponseCache):
                         generation_settings_digest, conversation_context_digest,
                         tenant_or_jurisdiction, eligibility_classification, input_tokens,
                         output_tokens, total_tokens, generation_latency_ms, created_at,
-                        expires_at, last_used_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        expires_at, last_used_at, scope_fingerprint, embedding,
+                        embedding_dimensions, embedding_model_version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(exact_key) DO UPDATE SET
                         entry_id = excluded.entry_id,
                         generation_json = excluded.generation_json,
@@ -653,6 +871,10 @@ class SQLiteResponseCache(ResponseCache):
                         generation_latency_ms = excluded.generation_latency_ms,
                         created_at = excluded.created_at,
                         expires_at = excluded.expires_at,
+                        scope_fingerprint = excluded.scope_fingerprint,
+                        embedding = excluded.embedding,
+                        embedding_dimensions = excluded.embedding_dimensions,
+                        embedding_model_version = excluded.embedding_model_version,
                         hit_count = 0,
                         last_used_at = excluded.last_used_at
                 """, values)
@@ -674,6 +896,8 @@ def cache_metrics(turns: Sequence[Mapping[str, object]]) -> dict[str, int | floa
 
     counts = {status.value: 0 for status in CacheStatus}
     exact_hits = 0
+    semantic_hits = 0
+    semantic_shadow_matches = 0
     tokens_saved = 0
     latency_saved_ms = 0.0
     total = 0
@@ -691,6 +915,11 @@ def cache_metrics(turns: Sequence[Mapping[str, object]]) -> dict[str, int | floa
             eligible_lookups += 1
         if status == CacheStatus.HIT.value and audit.get("match_type") == CacheMatchType.EXACT.value:
             exact_hits += 1
+        if status == CacheStatus.HIT.value and audit.get("match_type") == CacheMatchType.SEMANTIC.value:
+            semantic_hits += 1
+        shadow = audit.get("semantic_shadow")
+        if isinstance(shadow, Mapping) and shadow.get("status") == CacheStatus.HIT.value:
+            semantic_shadow_matches += 1
         saved = audit.get("tokens_saved")
         if isinstance(saved, int) and not isinstance(saved, bool) and saved >= 0:
             tokens_saved += saved
@@ -701,6 +930,8 @@ def cache_metrics(turns: Sequence[Mapping[str, object]]) -> dict[str, int | floa
         "requests": total,
         "eligible_lookups": eligible_lookups,
         "exact_hits": exact_hits,
+        "semantic_hits": semantic_hits,
+        "semantic_shadow_matches": semantic_shadow_matches,
         "misses": counts[CacheStatus.MISS.value],
         "bypasses": counts[CacheStatus.BYPASS.value],
         "stale": counts[CacheStatus.STALE.value],
@@ -708,6 +939,6 @@ def cache_metrics(turns: Sequence[Mapping[str, object]]) -> dict[str, int | floa
         "tokens_avoided": tokens_saved,
         "generation_latency_avoided_ms": latency_saved_ms,
         "estimated_cost_avoided_usd": None,
-        "eligible_hit_rate": exact_hits / eligible_lookups if eligible_lookups else 0.0,
-        "overall_hit_rate": exact_hits / total if total else 0.0,
+        "eligible_hit_rate": (exact_hits + semantic_hits) / eligible_lookups if eligible_lookups else 0.0,
+        "overall_hit_rate": (exact_hits + semantic_hits) / total if total else 0.0,
     }

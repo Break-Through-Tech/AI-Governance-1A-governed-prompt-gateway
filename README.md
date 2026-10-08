@@ -24,6 +24,23 @@ Launch the chat interface:
 python -m streamlit run app.py
 ```
 
+Response caching defaults to exact matches. Semantic reuse uses a deterministic
+local embedding (no download or external embedding API), always checks exact
+matches first, and only compares entries with the same policy, sources, model,
+prompt, knowledge-base, conversation, tenant, and embedding versions. Configure
+the staged rollout before launch:
+
+```bash
+export CACHE_MODE=semantic-shadow  # off | exact | semantic-shadow | semantic
+export SEMANTIC_CACHE_THRESHOLD=0.90
+export SEMANTIC_CACHE_MARGIN=0.05
+python -m streamlit run app.py
+```
+
+Use `semantic-shadow` to measure candidate quality without serving semantic
+hits. Use `semantic` only after calibrating the threshold for the deployment's
+queries; ambiguous candidates within the configured margin are rejected.
+
 Open http://127.0.0.1:8501. The chat shows retrieved question/answer pairs, similarity
 scores, expandable source details, session history, and a reset button. It uses no
 LLM; each question is searched independently.

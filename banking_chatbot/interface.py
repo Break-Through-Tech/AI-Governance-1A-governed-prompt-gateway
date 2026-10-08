@@ -6,8 +6,15 @@ from pathlib import Path
 
 import streamlit as st
 
-from .cache import SQLiteResponseCache, cache_metrics
+from .cache import (
+    CacheMode,
+    SQLiteResponseCache,
+    cache_metrics,
+    configured_cache_mode,
+    configured_semantic_settings,
+)
 from .data import DEFAULT_CLEAN
+from .embeddings import LocalHashingEmbedder
 from .chat import chat
 from .gemini import DEFAULT_MODEL, SUPPORTED_MODELS, GenerationError, local_settings
 from .retrieval import DEFAULT_THRESHOLD, Retriever
@@ -36,8 +43,17 @@ def load_retriever(knowledge_path: str, content_digest: str) -> Retriever:
 
 
 @st.cache_resource(show_spinner=False)
-def get_response_cache() -> SQLiteResponseCache:
-    return SQLiteResponseCache()
+def get_response_cache(
+    mode: str = CacheMode.EXACT.value,
+    semantic_threshold: float = 0.90,
+    semantic_margin: float = 0.05,
+) -> SQLiteResponseCache:
+    semantic = mode in {CacheMode.SEMANTIC.value, CacheMode.SEMANTIC_SHADOW.value}
+    return SQLiteResponseCache(
+        embedder=LocalHashingEmbedder() if semantic else None,
+        semantic_threshold=semantic_threshold,
+        semantic_margin=semantic_margin,
+    )
 
 
 def reset_chat() -> None:
@@ -76,8 +92,9 @@ def render_result(turn: dict) -> None:
         cache = turn.get("cache") or {}
         cache_status = cache.get("status")
         if cache_status == "hit":
+            match_label = "Semantic" if cache.get("match_type") == "semantic" else "Exact"
             st.success(
-                f"Exact cache hit · {cache.get('tokens_saved', 0)} tokens and "
+                f"{match_label} cache hit · {cache.get('tokens_saved', 0)} tokens and "
                 f"{cache.get('latency_saved_ms', 0) / 1000:.1f} s of generation avoided"
             )
         elif cache_status == "error":
@@ -145,14 +162,29 @@ def main() -> None:
             st.caption("Use a project on the Free tier. Billing and quota follow your Google project; the app cannot enforce free billing. No automatic model switch or billing upgrade is performed.")
             st.caption("Google may use free-tier content to improve its products. Use synthetic test questions.")
         metrics = cache_metrics(st.session_state["turns"])
+        try:
+            cache_mode = configured_cache_mode()
+            semantic_threshold, semantic_margin = configured_semantic_settings()
+        except ValueError as exc:
+            st.warning(str(exc))
+            cache_mode = CacheMode.EXACT
+            semantic_threshold, semantic_margin = 0.90, 0.05
         st.divider()
         st.subheader("Response cache")
-        cache_columns = st.columns(2)
+        st.caption(f"Mode: {cache_mode.value}")
+        if cache_mode in {CacheMode.SEMANTIC, CacheMode.SEMANTIC_SHADOW}:
+            st.caption(
+                f"Semantic threshold: {semantic_threshold:.2f} · "
+                f"ambiguity margin: {semantic_margin:.2f}"
+            )
+        cache_columns = st.columns(3)
         cache_columns[0].metric("Exact hits", metrics["exact_hits"])
-        cache_columns[1].metric("Eligible hit rate", f"{metrics['eligible_hit_rate']:.0%}")
+        cache_columns[1].metric("Semantic hits", metrics["semantic_hits"])
+        cache_columns[2].metric("Eligible hit rate", f"{metrics['eligible_hit_rate']:.0%}")
         st.caption(
             f"Eligible lookups: {metrics['eligible_lookups']} · Misses: {metrics['misses']} · "
-            f"Bypasses: {metrics['bypasses']} · Stale: {metrics['stale']} · Errors: {metrics['errors']}"
+            f"Shadow matches: {metrics['semantic_shadow_matches']} · Bypasses: {metrics['bypasses']} · "
+            f"Stale: {metrics['stale']} · Errors: {metrics['errors']}"
         )
         st.caption(
             f"Avoided: {metrics['tokens_avoided']} tokens and "
@@ -197,11 +229,14 @@ def main() -> None:
         else:
             try:
                 with st.spinner("Generating a Gemini answer…" if use_gemini else "Searching references…"):
-                    response_cache = get_response_cache() if use_gemini else None
+                    response_cache = get_response_cache(
+                        cache_mode.value, semantic_threshold, semantic_margin,
+                    ) if use_gemini else None
                     turn = chat(
                         submitted, st.session_state["turns"], retriever=retriever,
                         api_key=api_key, use_gemini=use_gemini, model=model,
                         top_k=top_k, threshold=threshold, cache=response_cache,
+                        cache_mode=cache_mode,
                     )
             except (OSError, ValueError):
                 st.error("This search could not be completed. Please try another question.")
