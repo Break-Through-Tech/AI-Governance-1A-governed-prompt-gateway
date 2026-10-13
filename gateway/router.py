@@ -19,10 +19,24 @@ COMPLEXITY_SIGNALS: list[tuple[str, re.Pattern[str]]] = [
     ("multiple_questions", re.compile(r"\?.*\?", re.DOTALL)),
     ("numeric_reasoning", re.compile(
         r"\b(?:calculate|compute|how much|total|percent|interest|apr|rate)\b|%", re.IGNORECASE)),
+    # A money amount AND a rate in the same query (or an explicit "calculate") is a
+    # computation, not a lookup. Scored separately so such queries reach the threshold.
+    ("numeric_computation", re.compile(
+        r"(?=.*(?:[$€£]\s?\d|\b\d+\s?(?:dollars|usd)\b))(?=.*(?:\d+(?:\.\d+)?\s?%|\b(?:percent|apr|interest|rate)\b))"
+        r"|\b(?:calculate|compute)\b", re.IGNORECASE | re.DOTALL)),
     ("comparison", re.compile(
         r"\b(?:compare|versus|vs\.?|difference between|better|which (?:one|should))\b", re.IGNORECASE)),
     ("multi_step", re.compile(
         r"\b(?:and then|after that|step by step|first\b.*\bthen)\b", re.IGNORECASE | re.DOTALL)),
+    # Asking for reasoning rather than a fact: "why", "what happens if", "walk me through".
+    ("explanation", re.compile(
+        r"\b(?:explain|walk me through|why (?:did|is|was|does|am)|what happens if|i don'?t understand|how does\b.*\bwork)\b",
+        re.IGNORECASE | re.DOTALL)),
+    # Asking for a recommendation between options, not a procedure.
+    ("decision", re.compile(
+        r"\b(?:should i|which should|what are my options|pros and cons|what should i do about)\b", re.IGNORECASE)),
+    # Several concerns in one message: "my card, fees, and notifying you".
+    ("multi_topic", re.compile(r"\b\w+, \w+,? (?:and|or) \w+", re.IGNORECASE)),
 ]
 
 

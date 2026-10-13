@@ -1,0 +1,31 @@
+query,intent
+How do I reset my PIN?,
+How do I activate my new debit card?,card_activation
+What are your branch opening hours?,
+Can I change my address online?,
+How long does an international transfer take?,
+What is the daily ATM withdrawal limit?,
+How do I set up a standing order?,
+Where can I see my statements?,
+I lost my card what should I do?,card_lost
+How do I close my account?,
+Can I open a joint account?,
+How do I enable contactless payments?,
+Is there a fee for using an ATM abroad?,
+My card was charged twice for the same purchase,disputed_charge
+I think someone used my card without permission,fraud_report
+I want to apply for a personal loan,loan_application
+Should I put my savings into an index fund or a fixed deposit?,investment_question
+Compare the APR on both of your credit cards? How much interest would I pay in total on a $2000 balance?,
+What is the difference between a current account and a savings account and which should I pick?,
+If I deposit $500 a month at 4% interest how much will I have after 5 years?,
+First tell me how to freeze my card and then how to order a replacement,
+What happens if I miss a credit card payment and then pay it a week late? Will my score drop?,
+Hi,
+Thanks for your help!,
+Can you help me with my account?,
+How much does a wire transfer cost?,
+Why was I charged a $5 monthly fee?,
+Do you offer student accounts?,
+How do I update my phone number?,
+Calculate the total interest on a 36 month loan of $10000 at 7% APR,

@@ -56,3 +56,37 @@ class RouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ComplexitySignalTests(unittest.TestCase):
+    """Pin the signals tuned against data/router_eval.csv on 2026-10-12."""
+
+    def setUp(self):
+        self.rules = load_config().rules
+
+    def signals(self, query):
+        return complexity_signals(query, 10, self.rules)
+
+    def test_money_and_rate_is_a_computation(self):
+        self.assertIn("numeric_computation", self.signals("If I deposit $500 a month at 4% how much will I have?"))
+
+    def test_money_without_a_rate_is_not_a_computation(self):
+        self.assertNotIn("numeric_computation", self.signals("Why was I charged a $5 monthly fee?"))
+
+    def test_explanation_phrases(self):
+        self.assertIn("explanation", self.signals("Can you walk me through what changed?"))
+        self.assertIn("explanation", self.signals("How does compound interest work?"))
+        self.assertNotIn("explanation", self.signals("How do I reset my PIN?"))
+
+    def test_decision_phrases(self):
+        self.assertIn("decision", self.signals("Which should I pick?"))
+        self.assertNotIn("decision", self.signals("Can I open a joint account?"))
+
+    def test_multi_topic_list(self):
+        self.assertIn("multi_topic", self.signals("what should I do about my card, fees, and notifying you?"))
+        self.assertNotIn("multi_topic", self.signals("How do I update my phone number?"))
+
+    def test_each_signal_counts_once(self):
+        # Two explanation phrases still score one point: signals are a set, not a tally.
+        found = self.signals("I don't understand why, can you walk me through it?")
+        self.assertEqual(found.count("explanation"), 1)

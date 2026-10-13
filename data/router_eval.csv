@@ -1,0 +1,61 @@
+query,intent,expected_tier
+How do I reset my PIN?,,tier-1
+How do I activate my new debit card?,card_activation,tier-1
+What are your branch opening hours?,,tier-1
+Can I change my address online?,,tier-1
+How long does an international transfer take?,,tier-1
+What is the daily ATM withdrawal limit?,,tier-1
+How do I set up a standing order?,,tier-1
+Where can I see my statements?,,tier-1
+I lost my card what should I do?,card_lost,tier-1
+How do I close my account?,,tier-1
+Can I open a joint account?,,tier-1
+How do I enable contactless payments?,,tier-1
+Is there a fee for using an ATM abroad?,,tier-1
+My card was charged twice for the same purchase,disputed_charge,tier-2
+I think someone used my card without permission,fraud_report,tier-2
+I want to apply for a personal loan,loan_application,tier-2
+Should I put my savings into an index fund or a fixed deposit?,investment_question,tier-2
+Compare the APR on both of your credit cards? How much interest would I pay in total on a $2000 balance?,,tier-2
+What is the difference between a current account and a savings account and which should I pick?,,tier-2
+If I deposit $500 a month at 4% interest how much will I have after 5 years?,,tier-2
+First tell me how to freeze my card and then how to order a replacement,,tier-1
+What happens if I miss a credit card payment and then pay it a week late? Will my score drop?,,tier-2
+Hi,,tier-1
+Thanks for your help!,,tier-1
+Can you help me with my account?,,tier-1
+How much does a wire transfer cost?,,tier-1
+Why was I charged a $5 monthly fee?,,tier-1
+Do you offer student accounts?,,tier-1
+How do I update my phone number?,,tier-1
+Calculate the total interest on a 36 month loan of $10000 at 7% APR,,tier-2
+What is the routing number for my account?,,tier-1
+How do I download the mobile app?,,tier-1
+Can I deposit a cheque using the app?,,tier-1
+What documents do I need to open an account?,,tier-1
+Is online banking available 24/7?,,tier-1
+How do I order a new chequebook?,,tier-1
+What is an overdraft?,,tier-1
+Can I pay my credit card bill from another bank?,,tier-1
+How do I turn on transaction alerts?,,tier-1
+What is the minimum balance for a savings account?,,tier-1
+"If I transfer $3000 to my savings today and the rate is 3.5%, how much interest do I earn by December?",,tier-2
+"Which is cheaper for sending $1000 to Europe, a wire or your international transfer service, including the exchange rate margin?",,tier-2
+"My mortgage payment went up this month and I don't understand why, can you walk me through what changed?",,tier-2
+"I was charged an overdraft fee even though I had enough money, what happened?",disputed_charge,tier-2
+"I received a text asking for my PIN, is this from you?",fraud_report,tier-2
+Should I pay off my credit card or build an emergency fund first?,investment_question,tier-2
+"I want to refinance my car loan, what are my options?",loan_application,tier-2
+How does compound interest work on my savings account?,,tier-2
+Explain the pros and cons of a fixed rate versus a variable rate mortgage,,tier-2
+"I'm travelling to Japan next month, what should I do about my card, fees, and notifying you?",,tier-2
+What is the exchange rate for euros today?,,tier-1
+"Hello, is anyone there?",,tier-1
+ok thanks bye,,tier-1
+How do I reset my PIN and also change my daily limit?,,tier-1
+Please please please tell me as quickly as you possibly can how to find my account number because I am in a hurry and have looked everywhere in the app and cannot find it anywhere at all,,tier-1
+Can you compare your savings account rate to a 2% rate at another bank?,,tier-2
+"What would my monthly payment be on a $250,000 mortgage over 30 years at 6%?",,tier-2
+Is my money insured if the bank fails?,,tier-1
+Why is my balance different from my available balance?,,tier-1
+"I made a payment yesterday and it's still pending, then another one went through, why is the order wrong?",,tier-2
