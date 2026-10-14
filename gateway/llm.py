@@ -22,6 +22,7 @@ from typing import Protocol
 import requests
 
 from .cost import count_tokens
+from .env import load_dotenv
 from .schema import GenerationResult
 
 
@@ -69,7 +70,10 @@ class GeminiProvider:
 
     def __init__(self, api_key: str | None = None, *, max_output_tokens: int = 384,
                  temperature: float = 0.2, timeout: tuple[float, float] = (5, 20)) -> None:
-        self.api_key = (api_key if api_key is not None else os.environ.get("GEMINI_API_KEY", "")).strip()
+        if api_key is None:
+            load_dotenv()  # fills GEMINI_API_KEY from .env unless the shell already set it
+            api_key = os.environ.get("GEMINI_API_KEY", "")
+        self.api_key = api_key.strip()
         self.max_output_tokens = max_output_tokens
         self.temperature = temperature
         self.timeout = timeout
