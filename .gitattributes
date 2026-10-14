@@ -1,0 +1,2 @@
+# Preserve the original Kaggle file's bytes and Windows line endings.
+data/banking/raw/Dataset_Banking_chatbot.csv -text whitespace=cr-at-eol

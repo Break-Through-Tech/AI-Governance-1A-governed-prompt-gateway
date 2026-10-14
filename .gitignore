@@ -5,3 +5,17 @@ var/
 .streamlit/secrets.toml
 .DS_Store
 .env
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.streamlit/secrets.toml
+.DS_Store
+
+# Generated document staging and render QA artifacts
+output/
+tmp/
+docs/*_final/
+
+# Runtime response-cache databases and SQLite sidecars
+var/
