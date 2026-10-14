@@ -87,9 +87,11 @@ def route(
 
     # The model sees the system prompt too, so it counts toward input cost.
     input_tokens = query_tokens + count_tokens(system_prompt)
-    output_tokens = rules.expected_output_tokens
+    # Thinking models answer with more billed output, so a tier may override the default.
+    output_tokens = tier.expected_output_tokens or rules.expected_output_tokens
+    baseline_output = baseline.expected_output_tokens or rules.expected_output_tokens
     cost = estimate_cost(input_tokens, output_tokens, tier)
-    baseline_cost = estimate_cost(input_tokens, output_tokens, baseline)
+    baseline_cost = estimate_cost(input_tokens, baseline_output, baseline)
 
     return RouterDecision(
         tier=tier.name,

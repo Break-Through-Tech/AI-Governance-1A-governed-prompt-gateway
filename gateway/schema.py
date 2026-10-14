@@ -77,7 +77,8 @@ class GenerationResult:
     model: str
     answer: str = ""
     input_tokens: int | None = None
-    output_tokens: int | None = None
+    output_tokens: int | None = None  # billed output: answer tokens plus thinking tokens
+    thinking_tokens: int | None = None
     elapsed_ms: float = 0.0
     simulated: bool = True
     message: str = ""  # user-safe error text when status == "error"

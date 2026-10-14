@@ -23,6 +23,8 @@ class Tier:
     input_per_million: float
     output_per_million: float
     description: str = ""
+    thinking_level: str | None = None  # provider-specific; None sends no thinking setting
+    expected_output_tokens: int | None = None  # overrides routing.expected_output_tokens for estimates
 
 
 @dataclass(frozen=True)

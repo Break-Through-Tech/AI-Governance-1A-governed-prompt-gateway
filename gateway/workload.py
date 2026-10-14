@@ -93,7 +93,8 @@ def _baseline_cost(record: dict, config: GatewayConfig) -> float:
     if router:
         return float(router["baseline_cost_usd"])
     tokens = count_tokens(record["query"]) + count_tokens(system_prompt("default"))
-    return estimate_cost(tokens, config.rules.expected_output_tokens, config.tier(config.rules.baseline_tier))
+    baseline = config.tier(config.rules.baseline_tier)
+    return estimate_cost(tokens, baseline.expected_output_tokens or config.rules.expected_output_tokens, baseline)
 
 
 def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | None = None) -> dict:

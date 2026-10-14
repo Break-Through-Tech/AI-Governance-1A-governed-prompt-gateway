@@ -67,7 +67,8 @@ def _run_stages(record: DecisionRecord, intent: str | None, provider: Provider, 
         config=config,
     )
 
-    record.generation = provider.generate(query, prompt, record.router.model)
+    tier = config.tier(record.router.tier)
+    record.generation = provider.generate(query, prompt, tier.model, thinking_level=tier.thinking_level)
     if record.generation.status != "generated":
         record.final_status = "error"
         return

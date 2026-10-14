@@ -11,7 +11,7 @@ from gateway.schema import DecisionRecord, GenerationResult
 class FailingProvider:
     name = "failing"
 
-    def generate(self, query, system_prompt, model):
+    def generate(self, query, system_prompt, model, **_):
         return GenerationResult(status="error", provider=self.name, model=model, message="boom")
 
 

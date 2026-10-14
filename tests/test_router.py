@@ -48,6 +48,13 @@ class RouterTests(unittest.TestCase):
         )
         self.assertGreaterEqual(decision.savings_usd, 0)
 
+    def test_tier_expected_output_override_is_used(self):
+        tier2 = self.config.tier("tier-2")
+        if tier2.expected_output_tokens is None:
+            self.skipTest("tier-2 has no expected_output_tokens override in config")
+        decision = route("hi", risk="escalate", config=self.config)
+        self.assertEqual(decision.estimated_output_tokens, tier2.expected_output_tokens)
+
     def test_baseline_tier_has_zero_savings(self):
         decision = route("hi", risk="escalate", config=self.config)
         self.assertEqual(decision.tier, decision.baseline_tier)
