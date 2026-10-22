@@ -7,6 +7,8 @@ the order of stages do not change.
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from .audit import AuditLog
 from .config import GatewayConfig, load_config
 from .llm import Provider, SimulatedProvider
@@ -16,6 +18,7 @@ from .schema import (
     CacheDecision,
     ComplianceDecision,
     DecisionRecord,
+    GenerationResult,
     GuardrailDecision,
     IntentDecision,
 )
@@ -27,8 +30,21 @@ def check_guardrails(query: str) -> GuardrailDecision:  # Team A
     return GuardrailDecision()
 
 
-def lookup_cache(query: str) -> CacheDecision:  # Team B
-    return CacheDecision()
+class Cache(Protocol):
+    """What the pipeline needs from a cache. ``gateway.cache_adapter.GatewayCache`` implements it."""
+
+    name: str
+
+    def lookup(self, query: str, *, provider_name: str) -> tuple[CacheDecision, GenerationResult | None]: ...
+
+    def store(self, query: str, generation: GenerationResult) -> bool: ...
+
+
+def lookup_cache(query: str, cache: Cache | None, provider_name: str) -> tuple[CacheDecision, GenerationResult | None]:
+    """Stage 2. Without a cache object the stage records a bypass rather than pretending it ran."""
+    if cache is None:
+        return CacheDecision(status="bypass", reason="no cache configured"), None
+    return cache.lookup(query, provider_name=provider_name)
 
 
 def classify_intent(query: str, override: str | None = None) -> IntentDecision:  # Team C
@@ -43,7 +59,8 @@ def check_compliance(answer: str) -> ComplianceDecision:  # Team D
 
 # ---- the request path --------------------------------------------------------
 
-def _run_stages(record: DecisionRecord, intent: str | None, provider: Provider, config: GatewayConfig) -> None:
+def _run_stages(record: DecisionRecord, intent: str | None, provider: Provider, config: GatewayConfig,
+                cache: Cache | None) -> None:
     """Fill in ``record`` stage by stage. Returning early is how a stage stops the pipeline."""
     query = record.query
 
@@ -52,8 +69,9 @@ def _run_stages(record: DecisionRecord, intent: str | None, provider: Provider, 
         record.final_status = "blocked"
         return  # blocked questions never reach a model
 
-    record.cache = lookup_cache(query)
+    record.cache, cached = lookup_cache(query, cache, provider.name)
     if record.cache.status == "hit":
+        record.generation = cached  # the stored answer, with zero model tokens
         record.final_status = "cached"
         return  # cached questions never reach a model either
 
@@ -74,7 +92,12 @@ def _run_stages(record: DecisionRecord, intent: str | None, provider: Provider, 
         return
 
     record.output_compliance = check_compliance(record.generation.answer)
-    record.final_status = "answered" if record.output_compliance.status == "pass" else "blocked"
+    if record.output_compliance.status != "pass":
+        record.final_status = "blocked"
+        return
+    record.final_status = "answered"
+    if cache is not None:
+        cache.store(query, record.generation)  # only answers that passed compliance are reusable
 
 
 def process(
@@ -84,6 +107,7 @@ def process(
     provider: Provider | None = None,
     config: GatewayConfig | None = None,
     audit: AuditLog | None = None,
+    cache: Cache | None = None,
 ) -> DecisionRecord:
     """Run ``query`` through the gateway, append the record to ``audit`` if given, and return it.
 
@@ -93,7 +117,7 @@ def process(
     config = config or load_config()
     provider = provider or SimulatedProvider(config.rules.expected_output_tokens)
     record = DecisionRecord(query=query)
-    _run_stages(record, intent, provider, config)
+    _run_stages(record, intent, provider, config, cache)
     if audit is not None:
         audit.append(record)
     return record

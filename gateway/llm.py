@@ -54,6 +54,7 @@ class SimulatedProvider:
             output_tokens=self.expected_output_tokens,
             elapsed_ms=(time.perf_counter() - started) * 1000,
             simulated=True,
+            finish_reason="STOP",
         )
 
 
@@ -161,7 +162,8 @@ class GeminiProvider:
 
         result = GenerationResult(
             status="generated", provider=self.name, model=model, answer=answer,
-            elapsed_ms=(time.perf_counter() - started) * 1000, simulated=False, **counts,
+            elapsed_ms=(time.perf_counter() - started) * 1000, simulated=False,
+            finish_reason=finish, **counts,
         )
         if finish == "MAX_TOKENS":
             result.message = f"Answer hit the {self.max_output_tokens}-token output cap and may be incomplete."

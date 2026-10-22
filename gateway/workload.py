@@ -63,6 +63,7 @@ def run_workload(
     provider: Provider | None = None,
     config: GatewayConfig | None = None,
     audit: AuditLog | None = None,
+    cache=None,
     progress_every: int = 0,
 ) -> list[DecisionRecord]:
     """Process each query and return the records. ``audit`` receives every record as it is produced."""
@@ -70,7 +71,8 @@ def run_workload(
     provider = provider or SimulatedProvider(config.rules.expected_output_tokens)
     records: list[DecisionRecord] = []
     for index, item in enumerate(queries, start=1):
-        record = process(item["query"], intent=item.get("intent"), provider=provider, config=config, audit=audit)
+        record = process(item["query"], intent=item.get("intent"), provider=provider, config=config, audit=audit,
+                         cache=cache)
         records.append(record)
         if progress_every and index % progress_every == 0:
             print(f"  {index} processed", file=sys.stderr)
@@ -117,7 +119,8 @@ def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | 
         generation = record.get("generation")
         if router:
             tiers[router["tier"]] += 1
-        if generation and generation.get("status") == "generated":
+        # A cache hit also carries a generation block but no router block: it cost no model call.
+        if router and generation and generation.get("status") == "generated":
             model_calls += 1
             # Prefer real token counts (live calls) over the router's estimate.
             inp = generation.get("input_tokens")

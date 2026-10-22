@@ -35,9 +35,10 @@ class GuardrailDecision:
 class CacheDecision:
     """Stage 2. Did a pre-approved answer already cover this question?"""
 
-    status: str = "miss"  # hit | miss | bypass
+    status: str = "miss"  # hit | miss | bypass | stale | error
     similarity: float | None = None
     entry_id: str | None = None
+    match_type: str | None = None  # exact | semantic, set on a hit
     reason: str = "stub: cache not implemented yet"
 
 
@@ -81,6 +82,7 @@ class GenerationResult:
     thinking_tokens: int | None = None
     elapsed_ms: float = 0.0
     simulated: bool = True
+    finish_reason: str | None = None  # "STOP" when the model finished on its own
     message: str = ""  # user-safe error text when status == "error"
 
 
