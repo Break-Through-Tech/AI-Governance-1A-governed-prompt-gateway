@@ -1,5 +1,21 @@
 # Governed Prompt Gateway
 
+## Governed gateway (router, cache, LangGraph pipeline)
+
+The gateway runs a query through six governance stages and returns one decision record:
+guardrails, semantic cache, intent, model-tier router with a cost estimate, the LLM call,
+and output compliance. The order is a LangGraph graph; each stage is a plain function a
+team plugs into.
+
+```bash
+source .venv/bin/activate
+python -m gateway "How do I reset my PIN?"                 # one query, simulated provider
+python -m streamlit run gateway_app.py --server.port 8502  # demo page: six stage cards and cost
+python -m gateway.graph                                    # the pipeline as a Mermaid diagram
+```
+
+- [Pipeline, router and cache](docs/gateway.md)
+
 ## Local banking chatbot foundation
 
 Dataset preparation, FAQ retrieval, and a Streamlit chat interface are implemented.
