@@ -1,4 +1,9 @@
-# banking_chatbot/intent/classifier.py
+""" 
+    Handles text cleaning, loads the scikit-learn Banking77 model 
+    pipeline, applies confidence thresholds, and calculates 
+    projected token counts and USD inference costs (which
+    should be toyed around w/ later)
+"""
 
 import os
 import re
@@ -39,7 +44,7 @@ def predict_intent(query_text: str) -> tuple[str, float]:
         predicted_label = LABEL_NAMES[best_idx]
         confidence = float(probabilities[best_idx])
         
-        # Confidence Threshold Fallback:
+        # Confidence Threshold Fallback (0.20):
         # If the model is guessing with low certainty, route to a safe default 
         # instead of trusting an incorrect fine-grained label.
         CONFIDENCE_THRESHOLD = 0.20
@@ -64,6 +69,7 @@ def estimate_llm_cost_and_route(state: Dict[str, Any]) -> Dict[str, Any]:
     pricing = MODEL_PRICING[tier]
     
     # 3. Estimate tokens (rough heuristic: ~4 chars per token)
+    # might want to edit later to use tiktoken for greater accuracy
     estimated_input_tokens = max(10, len(query) // 4)
     estimated_output_tokens = 150  # average banking response length
     
@@ -72,7 +78,7 @@ def estimate_llm_cost_and_route(state: Dict[str, Any]) -> Dict[str, Any]:
     output_cost = (estimated_output_tokens / 1000.0) * pricing["output_cost_per_1k"]
     total_projected_cost = input_cost + output_cost
     
-    # 5. Populate state for downstream graph steps
+    # 5. Populate state for downstream graph steps (caching keys omitted)
     state["intent_label"] = intent_label
     state["intent_confidence"] = confidence
     state["system_prompt"] = rules["prompt"]
@@ -81,7 +87,5 @@ def estimate_llm_cost_and_route(state: Dict[str, Any]) -> Dict[str, Any]:
     state["estimated_input_tokens"] = estimated_input_tokens
     state["estimated_output_tokens"] = estimated_output_tokens
     state["projected_cost_usd"] = round(total_projected_cost, 6)
-    state["cache_ttl_seconds"] = rules["ttl_seconds"]
-    state["cacheable_intent"] = rules["cacheable"]
     
     return state

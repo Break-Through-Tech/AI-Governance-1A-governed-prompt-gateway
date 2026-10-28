@@ -1,6 +1,7 @@
-# ==============================================================================
-# LOCAL STANDALONE TEST SCRIPT FOR INTENT CLASSIFICATION & COST ROUTING
-# ==============================================================================
+"""
+    Testing script
+"""
+
 import sys
 import os
 

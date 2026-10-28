@@ -1,31 +1,30 @@
-# ==============================================================================
-# INTENT POLICY & MODEL ROUTING CONFIGURATION
-# ==============================================================================
-
-# Cost per 1K tokens for model routing tiers
+"""
+    Configures LLM pricing tiers, maps Banking77 intent categories 
+    into complexities, and defines system prompts and caching 
+    rules for model routing
+"""
+# Cost per 1K tokens for current active model routing tiers (per 1M converted to per 1K)
 MODEL_PRICING = {
     "fast-cheap": {
-        "model_name": "gemini-1.5-flash",
-        "input_cost_per_1k": 0.000075,
-        "output_cost_per_1k": 0.0003
+        "model_name": "gemini-3.8-flash",
+        "input_cost_per_1k": 0.00075,   # $0.75 per 1M tokens
+        "output_cost_per_1k": 0.00375   # $3.75 per 1M tokens
     },
     "standard-balanced": {
-        "model_name": "gemini-1.5-pro",
-        "input_cost_per_1k": 0.00125,
-        "output_cost_per_1k": 0.0050
+        "model_name": "gemini-3.1-pro-preview",
+        "input_cost_per_1k": 0.0020,    # $2.00 per 1M tokens (up to 200k context)
+        "output_cost_per_1k": 0.0120    # $12.00 per 1M tokens
     },
     "high-reasoning": {
         "model_name": "claude-3-5-sonnet",
-        "input_cost_per_1k": 0.0030,
-        "output_cost_per_1k": 0.0150
+        "input_cost_per_1k": 0.0030,    # $3.00 per 1M tokens
+        "output_cost_per_1k": 0.0150    # $15.00 per 1M tokens
     }
 }
 
-# ------------------------------------------------------------------------------
-# INTENT COMPLEXITY MAPS (Banking77 Categories)
-# ------------------------------------------------------------------------------
+# INTENT MAPPING w/ banking77
 
-# Low complexity: simple read-only info -> routed to gemini-1.5-flash
+# Low complexity: simple read-only info -> routed to gemini-3.8-flash
 LOW_COMPLEXITY_INTENTS = {
     "branch_operating_hours",
     "exchange_rate",
@@ -42,7 +41,7 @@ LOW_COMPLEXITY_INTENTS = {
     "apple_pay_or_google_pay"
 }
 
-# Medium complexity: standard account actions & transfers -> routed to gemini-1.5-pro
+# Medium complexity: standard account actions & transfers -> routed to gemini-3.1-pro-preview
 MEDIUM_COMPLEXITY_INTENTS = {
     "account_management_faq",
     "transfer_timing",
@@ -65,29 +64,20 @@ MEDIUM_COMPLEXITY_INTENTS = {
 
 
 def get_prompt_and_routing_tier(intent_label: str) -> dict:
-    # Match intent label to its appropriate model tier and prompt template
+    # Match intent label to its appropriate model tier and system prompt
     if intent_label in LOW_COMPLEXITY_INTENTS:
         return {
             "prompt": "You are a helpful customer service assistant for a digital bank. Provide clear, concise answers.",
-            "ttl_seconds": 3600,
-            "cacheable": True,
-            "category": "CACHEABLE_SHORT_TTL",
             "model_tier": "fast-cheap"
         }
     elif intent_label in MEDIUM_COMPLEXITY_INTENTS:
         return {
             "prompt": "You are a secure banking assistant helping with account settings and transfers. Provide step-by-step guidance.",
-            "ttl_seconds": 86400,
-            "cacheable": True,
-            "category": "CACHEABLE_MEDIUM_TTL",
             "model_tier": "standard-balanced"
         }
     
     # High-stakes fallback for security / fraud cases
     return {
         "prompt": "You are a senior compliance officer assisting with sensitive financial disputes and fraud claims.",
-        "ttl_seconds": 86400,
-        "cacheable": False,
-        "category": "SECURE_LONG_TTL",
         "model_tier": "high-reasoning"
     }
