@@ -6,7 +6,15 @@ from pathlib import Path
 
 import streamlit as st
 
+from .cache import (
+    CacheMode,
+    SQLiteResponseCache,
+    cache_metrics,
+    configured_cache_mode,
+    configured_semantic_settings,
+)
 from .data import DEFAULT_CLEAN
+from .embeddings import LocalHashingEmbedder
 from .chat import chat
 from .gemini import DEFAULT_MODEL, SUPPORTED_MODELS, GenerationError, local_settings
 from .retrieval import DEFAULT_THRESHOLD, Retriever
@@ -34,6 +42,20 @@ def load_retriever(knowledge_path: str, content_digest: str) -> Retriever:
     return Retriever(Path(knowledge_path))
 
 
+@st.cache_resource(show_spinner=False)
+def get_response_cache(
+    mode: str = CacheMode.EXACT.value,
+    semantic_threshold: float = 0.90,
+    semantic_margin: float = 0.05,
+) -> SQLiteResponseCache:
+    semantic = mode in {CacheMode.SEMANTIC.value, CacheMode.SEMANTIC_SHADOW.value}
+    return SQLiteResponseCache(
+        embedder=LocalHashingEmbedder() if semantic else None,
+        semantic_threshold=semantic_threshold,
+        semantic_margin=semantic_margin,
+    )
+
+
 def reset_chat() -> None:
     st.session_state["turns"] = []
 
@@ -56,9 +78,10 @@ def render_result(turn: dict) -> None:
                 usage = generation["usage"]
                 input_tokens = usage["input_tokens"] if usage["input_tokens"] is not None else "unavailable"
                 output_tokens = usage["output_tokens"] if usage["output_tokens"] is not None else "unavailable"
+                timing_label = "Original generation" if turn.get("cache", {}).get("status") == "hit" else "Generation"
                 st.caption(
                     f"{generation['model']} · Input tokens: {input_tokens} · "
-                    f"Output tokens: {output_tokens} · Generation: {generation['elapsed_ms'] / 1000:.1f} s"
+                    f"Output tokens: {output_tokens} · {timing_label}: {generation['elapsed_ms'] / 1000:.1f} s"
                 )
                 if generation["finish_reason"] == "MAX_TOKENS":
                     st.warning("This answer reached the response-length limit and may be incomplete.")
@@ -66,12 +89,32 @@ def render_result(turn: dict) -> None:
                 st.divider()
             else:
                 st.warning(generation["message"])
+        compliance = turn.get("compliance")
+        if compliance:
+            if compliance['decision'] == 'allow':
+                st.caption('Passed configured output checks.')
+            st.caption(f"Output review: {compliance['decision']}")
+            if 'elapsed_ms' in compliance:
+                st.caption(f"Review time: {compliance['elapsed_ms'] / 1000:.1f} s · "
+                           f"Review tokens: {compliance.get('usage', {}).get('total_tokens', 'unavailable')}")
+        cache = turn.get("cache") or {}
+        cache_status = cache.get("status")
+        if cache_status == "hit":
+            match_label = "Semantic" if cache.get("match_type") == "semantic" else "Exact"
+            st.success(
+                f"{match_label} cache hit · {cache.get('tokens_saved', 0)} generation tokens and "
+                f"{cache.get('latency_saved_ms', 0) / 1000:.1f} s of generation avoided"
+            )
+        elif cache_status == "error":
+            st.warning(f"Cache unavailable · {cache.get('reason', 'Generation continued without cache reuse.')}")
+        elif cache_status in {"miss", "stale", "bypass"}:
+            st.caption(f"Response cache: {cache_status} · {cache.get('reason', '')}")
         if not result["matches"]:
             st.info(result["message"])
         else:
             count = len(result["matches"])
             st.markdown(f"**{count} matching reference{'s' if count != 1 else ''}**")
-            st.caption("Original dataset answers, shown without rewriting.")
+            st.caption("Synthetic reference previews; disallowed contact and sensitive details are removed.")
             for rank, match in enumerate(result["matches"], start=1):
                 with st.container(border=True):
                     st.caption(f"MATCH {rank} · Similarity {match['score']:.3f} / 1.000")
@@ -121,11 +164,42 @@ def main() -> None:
         use_gemini = bool(api_key) and enabled
         if not api_key:
             st.caption("No key configured for this session. Retrieval remains available.")
-        st.caption("When enabled, your question, retrieved references, and up to 3 recent AI exchanges are sent to Google.")
+        st.caption("When enabled, generation and output review send your question, references, and approved conversation context to Google. Review adds a separate API call, including on cache hits.")
         with st.expander("Free API setup"):
             st.markdown("[Create a Gemini key in Google AI Studio](https://aistudio.google.com/api-keys)")
             st.caption("Use a project on the Free tier. Billing and quota follow your Google project; the app cannot enforce free billing. No automatic model switch or billing upgrade is performed.")
             st.caption("Google may use free-tier content to improve its products. Use synthetic test questions.")
+        metrics = cache_metrics(st.session_state["turns"])
+        try:
+            cache_mode = configured_cache_mode()
+            semantic_threshold, semantic_margin = configured_semantic_settings()
+        except ValueError as exc:
+            st.warning(str(exc))
+            cache_mode = CacheMode.EXACT
+            semantic_threshold, semantic_margin = 0.90, 0.05
+        st.divider()
+        st.subheader("Response cache")
+        st.caption(f"Mode: {cache_mode.value}")
+        if cache_mode in {CacheMode.SEMANTIC, CacheMode.SEMANTIC_SHADOW}:
+            st.caption(
+                f"Semantic threshold: {semantic_threshold:.2f} · "
+                f"ambiguity margin: {semantic_margin:.2f}"
+            )
+        cache_columns = st.columns(3)
+        cache_columns[0].metric("Exact hits", metrics["exact_hits"])
+        cache_columns[1].metric("Semantic hits", metrics["semantic_hits"])
+        cache_columns[2].metric("Eligible hit rate", f"{metrics['eligible_hit_rate']:.0%}")
+        st.caption(
+            f"Eligible lookups: {metrics['eligible_lookups']} · Misses: {metrics['misses']} · "
+            f"Shadow matches: {metrics['semantic_shadow_matches']} · Bypasses: {metrics['bypasses']} · "
+            f"Stale: {metrics['stale']} · Errors: {metrics['errors']}"
+        )
+        st.caption(
+            f"Avoided: {metrics['tokens_avoided']} generation tokens and "
+            f"{metrics['generation_latency_avoided_ms'] / 1000:.1f} s generation latency. "
+            "Estimated cost avoided is unavailable until a versioned price model is configured."
+        )
+        st.caption("The temporary banking-demo policy caches only stable, retrieval-backed general FAQs.")
         st.divider()
         st.subheader("About this demo")
         st.write("Search sample banking questions and see the original answers with their sources.")
@@ -163,10 +237,14 @@ def main() -> None:
         else:
             try:
                 with st.spinner("Generating a Gemini answer…" if use_gemini else "Searching references…"):
+                    response_cache = get_response_cache(
+                        cache_mode.value, semantic_threshold, semantic_margin,
+                    ) if use_gemini else None
                     turn = chat(
                         submitted, st.session_state["turns"], retriever=retriever,
                         api_key=api_key, use_gemini=use_gemini, model=model,
-                        top_k=top_k, threshold=threshold,
+                        top_k=top_k, threshold=threshold, cache=response_cache,
+                        cache_mode=cache_mode,
                     )
             except (OSError, ValueError):
                 st.error("This search could not be completed. Please try another question.")

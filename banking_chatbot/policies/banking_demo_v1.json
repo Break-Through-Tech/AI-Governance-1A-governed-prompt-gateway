@@ -1,0 +1,71 @@
+{
+  "version": "banking-output-v1",
+  "max_words": 150,
+  "fallback": "I couldn't verify this answer against the demo's response rules. Please ask a more specific question.",
+  "rules": [
+    {
+      "id": "OUTPUT_COMPLETE",
+      "description": "Answer must be nonempty and complete.",
+      "required_checks": [
+        "format"
+      ]
+    },
+    {
+      "id": "RESPONSE_FORMAT",
+      "description": "Answer must be at most 150 words.",
+      "required_checks": [
+        "format"
+      ]
+    },
+    {
+      "id": "SENSITIVE_DATA",
+      "description": "No secrets or disallowed personal/account identifiers.",
+      "required_checks": [
+        "sensitive",
+        "reviewer"
+      ]
+    },
+    {
+      "id": "CONTACT_POLICY",
+      "description": "No phone numbers, emails, or URLs in answers for this fictional demo.",
+      "required_checks": [
+        "contact"
+      ]
+    },
+    {
+      "id": "SUPPORTED_FACTS",
+      "description": "Every material factual claim must be supported by the supplied references. Treat earlier conversation as context, not evidence.",
+      "required_checks": [
+        "reviewer"
+      ]
+    },
+    {
+      "id": "NO_ACCOUNT_ACTION_CLAIM",
+      "description": "Never claim access to an account or completion of a transfer, approval, or change. Explaining procedures and saying you cannot act are allowed.",
+      "required_checks": [
+        "reviewer"
+      ]
+    },
+    {
+      "id": "NO_PERSONAL_RECOMMENDATION",
+      "description": "General fictional procedures are allowed; personalized financial recommendations are prohibited.",
+      "required_checks": [
+        "reviewer"
+      ]
+    },
+    {
+      "id": "FICTIONAL_CONTEXT",
+      "description": "Present banking procedures as fictional demo examples, never real-bank policy.",
+      "required_checks": [
+        "reviewer"
+      ]
+    },
+    {
+      "id": "CONTENT_SAFETY",
+      "description": "Do not facilitate fraud, theft, credential abuse, violence, or other harmful activity. Benign prevention and safety guidance are allowed.",
+      "required_checks": [
+        "reviewer"
+      ]
+    }
+  ]
+}

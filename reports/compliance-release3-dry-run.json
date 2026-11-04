@@ -1,0 +1,19 @@
+{
+  "dataset_sha256": "142adca709183fd73fb2ee5251bae36fbf93ebcf7a89deab784900975d164294",
+  "label_status": "draft_or_unresolved",
+  "live": false,
+  "unique_cases": 10,
+  "planned_evaluations": 40,
+  "maximum_http_calls": 100,
+  "models": [
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite"
+  ],
+  "repair_modes": [
+    "off",
+    "once"
+  ],
+  "split": "development",
+  "independent_reviewers": [],
+  "variants": {}
+}

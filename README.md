@@ -24,6 +24,23 @@ Launch the chat interface:
 python -m streamlit run app.py
 ```
 
+Response caching defaults to exact matches. Semantic reuse uses a deterministic
+local embedding (no download or external embedding API), always checks exact
+matches first, and only compares entries with the same policy, sources, model,
+prompt, knowledge-base, conversation, tenant, and embedding versions. Configure
+the staged rollout before launch:
+
+```bash
+export CACHE_MODE=semantic-shadow  # off | exact | semantic-shadow | semantic
+export SEMANTIC_CACHE_THRESHOLD=0.90
+export SEMANTIC_CACHE_MARGIN=0.05
+python -m streamlit run app.py
+```
+
+Use `semantic-shadow` to measure candidate quality without serving semantic
+hits. Use `semantic` only after calibrating the threshold for the deployment's
+queries; ambiguous candidates within the configured margin are rejected.
+
 Open http://127.0.0.1:8501. The chat shows retrieved question/answer pairs, similarity
 scores, expandable source details, session history, and a reset button. It uses no
 LLM; each question is searched independently.
@@ -163,3 +180,13 @@ Cite relevant papers, articles, or resources that supported your project.
 ## 🙏 **Acknowledgements** (Optional but encouraged)
 
 Thank your Challenge Advisor, host company representatives, TA, and others who supported your project.
+
+## Output compliance gate
+
+Generated and cached answers pass local checks plus a separate structured Gemini
+review before display or cache insertion. Set `COMPLIANCE_REVIEW_MODEL` to select
+`gemini-3.8-flash` (default), `gemini-3.5-flash-lite`, or accessible legacy
+`gemini-2.5-flash`. Review adds an API call; failures withhold the candidate.
+Retrieval-only use remains offline. See [implementation and evaluation](docs/banking-chatbot.md#output-compliance)
+and the [modular implementation plan](plans/output-compliance-implementation-plan.md).
+The model choice is provisional pending independently labeled live evaluation.

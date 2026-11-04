@@ -10,3 +10,6 @@ __pycache__/
 output/
 tmp/
 docs/*_final/
+
+# Runtime response-cache databases and SQLite sidecars
+var/
