@@ -1,5 +1,5 @@
 """
-    Testing script
+    Testing script, for just the intent stuff
 """
 
 import sys
@@ -12,27 +12,26 @@ from banking_chatbot.intent.workflow import build_gateway_graph
 
 app = build_gateway_graph()
 
-# Diverse test suite covering different intents, typos, and complexities
+# Test suite covering different intents, typos, and complexities
 test_queries = [
-    # 1. Low Complexity / Fast-Cheap Tier (Expected: gemini-1.5-flash)
     "What are your branch operating hours on Saturday?",
     "What's the current exchange rate from USD to EUR?",
     "When will my new debit card arrive?",
     "Do you support contactless payments?",
-    "Hi, what is a savings account?",
-
-    # 2. High Complexity / Security Tier (Expected: claude-3-5-sonnet)
+    "Hi, what is a savings account?"
     "I see a charge on my statement from a store I've never visited.",
     "My physical credit card was stolen at the airport yesterday.",
     "How do I dispute a fraudulent wire transfer?",
     "Why was I charged an extra overdraft fee on my account?",
     "I forgot my mobile banking passcode and need to reset it.",
-
-    # 3. Typos, Noise, & Missing Spaces (Robustness checks)
     "hw do i resset my passwrd for the appp",
     "forgotpasswordhowdoireset",
     "charged $10.50 extra fee on my card???!!!",
     "whrs the nearest atm around here??",
+
+    # other
+    "if I am trying to save some money, I know there is a difference between a CD and HYSA. What is the difference, when should I use one over the other? im really lost.",
+    "hysa vs cd"
 ]
 
 print("\n" + "=" * 140)
@@ -46,7 +45,7 @@ for query in test_queries:
         "guardrail_status": "ALLOW"
     }
     
-    # Invoke LangGraph workflow
+    # invoke LangGraph workflow
     result_state = app.invoke(initial_state)
     
     total_tokens = (

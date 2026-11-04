@@ -4,27 +4,36 @@
     rules for model routing
 """
 # Cost per 1K tokens for current active model routing tiers (per 1M converted to per 1K)
+# Currently hardcoded testing values, and all models are 3.1 flash lite because it was
+# less finnicky to test w/
 MODEL_PRICING = {
     "fast-cheap": {
-        "model_name": "gemini-3.8-flash",
-        "input_cost_per_1k": 0.00075,   # $0.75 per 1M tokens
-        "output_cost_per_1k": 0.00375   # $3.75 per 1M tokens
+        "model_name": "gemini/gemini-3.1-flash-lite",  
+        "input_cost_per_1k": 0.00025,
+        "output_cost_per_1k": 0.00150
     },
     "standard-balanced": {
-        "model_name": "gemini-3.1-pro-preview",
-        "input_cost_per_1k": 0.0020,    # $2.00 per 1M tokens (up to 200k context)
-        "output_cost_per_1k": 0.0120    # $12.00 per 1M tokens
+        "model_name": "gemini/gemini-3.1-flash-lite",
+        "input_cost_per_1k": 0.00075,
+        "output_cost_per_1k": 0.00375
     },
     "high-reasoning": {
-        "model_name": "claude-3-5-sonnet",
-        "input_cost_per_1k": 0.0030,    # $3.00 per 1M tokens
-        "output_cost_per_1k": 0.0150    # $15.00 per 1M tokens
+        "model_name": "gemini/gemini-3.1-flash-lite",
+        "input_cost_per_1k": 0.0030,
+        "output_cost_per_1k": 0.0150
     }
 }
 
+# setup default output tokens and tier mapping policy
+INTENT_TOKEN_POLICY = {
+    "branch_operating_hours": {"tier": "fast-cheap", "expected_output_tokens": 60},
+    "passcode_forgotten": {"tier": "standard-balanced", "expected_output_tokens": 180},
+    "direct_debit_dispute": {"tier": "high-reasoning", "expected_output_tokens": 350},
+}
+
+
 # INTENT MAPPING w/ banking77
 
-# Low complexity: simple read-only info -> routed to gemini-3.8-flash
 LOW_COMPLEXITY_INTENTS = {
     "branch_operating_hours",
     "exchange_rate",
@@ -41,7 +50,6 @@ LOW_COMPLEXITY_INTENTS = {
     "apple_pay_or_google_pay"
 }
 
-# Medium complexity: standard account actions & transfers -> routed to gemini-3.1-pro-preview
 MEDIUM_COMPLEXITY_INTENTS = {
     "account_management_faq",
     "transfer_timing",
@@ -60,24 +68,31 @@ MEDIUM_COMPLEXITY_INTENTS = {
     "edit_personal_details"
 }
 
-# Fallback: unlisted intents (fraud, disputes, security) route to claude-3-5-sonnet
 
 
 def get_prompt_and_routing_tier(intent_label: str) -> dict:
-    # Match intent label to its appropriate model tier and system prompt
+    # Match intent label to its appropriate model tier, system prompt, and expected output tokens
+    
+    # Check if the specific intent has an explicit policy override
+    policy = INTENT_TOKEN_POLICY.get(intent_label, {})
+    expected_tokens = policy.get("expected_output_tokens")
+
     if intent_label in LOW_COMPLEXITY_INTENTS:
         return {
             "prompt": "You are a helpful customer service assistant for a digital bank. Provide clear, concise answers.",
-            "model_tier": "fast-cheap"
+            "model_tier": "fast-cheap",
+            "expected_output_tokens": expected_tokens if expected_tokens is not None else 60
         }
     elif intent_label in MEDIUM_COMPLEXITY_INTENTS:
         return {
             "prompt": "You are a secure banking assistant helping with account settings and transfers. Provide step-by-step guidance.",
-            "model_tier": "standard-balanced"
+            "model_tier": "standard-balanced",
+            "expected_output_tokens": expected_tokens if expected_tokens is not None else 180
         }
     
-    # High-stakes fallback for security / fraud cases
+    # Fallback for higher security issues
     return {
         "prompt": "You are a senior compliance officer assisting with sensitive financial disputes and fraud claims.",
-        "model_tier": "high-reasoning"
+        "model_tier": "high-reasoning",
+        "expected_output_tokens": expected_tokens if expected_tokens is not None else 350
     }
