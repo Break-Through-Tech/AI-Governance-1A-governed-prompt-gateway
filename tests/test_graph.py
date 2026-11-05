@@ -39,6 +39,8 @@ class ExitPathTests(unittest.TestCase):
             record = process("Should I invest in crypto?", cache=SpyCache())
         self.assertEqual(record.final_status, "blocked")
         self.assertIsNotNone(record.generation, "the model was called before compliance failed")
+        self.assertEqual(record.generation.answer, "", "a rejected answer must not stay in the record")
+        self.assertGreater(record.generation.output_tokens, 0, "the cost of the rejected call is still counted")
         self.assertEqual(record.output_compliance.status, "fail")
         self.assertEqual(stores, [], "a failed answer must never be cached")
 

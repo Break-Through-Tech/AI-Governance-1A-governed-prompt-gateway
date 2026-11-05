@@ -29,7 +29,7 @@ STAGES = [
     ("intent", "3. Intent", "Team C"),
     ("router", "4. Router", "us"),
     ("generation", "5. LLM response", "us"),
-    ("output_compliance", "6. Output compliance", "Team D"),
+    ("output_compliance", "6. Output compliance", "Joohye"),
 ]
 # status value -> (Streamlit box, label). Anything else is shown neutrally.
 STATUS_STYLE = {
@@ -81,6 +81,12 @@ def render_stage(name: str, title: str, owner: str, block: dict | None) -> None:
                 st.caption(block["message"])
         elif name == "intent":
             st.caption(f"{block['label']} ({block['confidence']:.0%}) · template: {block['prompt_template']}")
+            if block.get("reason"):
+                st.caption(block["reason"])
+        elif name == "output_compliance":
+            if block.get("flags"):
+                st.caption("failed rules: " + ", ".join(block["flags"]))
+            st.caption(block.get("reason", ""))
         else:
             st.caption(block.get("reason", ""))
 
@@ -101,7 +107,11 @@ def render_record(record: dict) -> None:
         d.metric("Saved", f"${router['savings_usd']:.6f}")
 
     generation = record.get("generation")
-    if generation and generation["status"] == "generated":
+    compliance = record.get("output_compliance")
+    if compliance and compliance["status"] != "pass":
+        st.subheader("Answer")
+        st.warning(compliance.get("message") or "This answer was withheld by the output compliance check.")
+    elif generation and generation["status"] == "generated":
         st.subheader("Answer")
         if generation["provider"] == "cache":
             st.caption(generation["message"] + " No model was called.")

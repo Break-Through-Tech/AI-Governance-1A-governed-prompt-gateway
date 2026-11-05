@@ -41,6 +41,7 @@ from banking_chatbot.cache import (
 from banking_chatbot.data import normalize
 from banking_chatbot.embeddings import LocalHashingEmbedder
 
+from . import compliance_adapter
 from .config import GatewayConfig, load_config
 from .prompts import system_prompt
 from .schema import CacheDecision, GenerationResult
@@ -88,7 +89,9 @@ class GatewayCache:
             normalized_query=normalize(query),
             tenant_or_jurisdiction="banking-demo",
             policy_classification=TEMPORARY_POLICY_CLASSIFICATION,
-            policy_version=TEMPORARY_CACHE_POLICY_VERSION,
+            # Same idea as her chat loop: a stored answer was approved under one compliance
+            # policy, so a policy change must not let it be served again.
+            policy_version=f"{TEMPORARY_CACHE_POLICY_VERSION}:{compliance_adapter.policy_version()}",
             knowledge_base_digest="parametric-only",  # non-RAG: there is no knowledge base
             sources=self._sources,
             system_prompt_version=self._prompt_version,

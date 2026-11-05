@@ -75,18 +75,21 @@ class CacheAdapterTests(unittest.TestCase):
 
     def test_her_policy_still_bypasses_risky_queries(self):
         cache = self.cache()
+        # query -> (her cache classification, how the run ends)
         cases = {
-            "What is my account balance?": "personalized",
-            "Transfer $500 to my savings": "transactional",
-            "What is the current exchange rate?": "time_sensitive",
-            "My card number is 4111 1111 1111 1111": "personal_data",
+            "What is my account balance?": ("personalized", "answered"),
+            "Transfer $500 to my savings": ("transactional", "answered"),
+            "What is the current exchange rate?": ("time_sensitive", "answered"),
+            # The simulated provider echoes the question, so its "answer" repeats the card
+            # number and output compliance withholds it. Two gates catch the same query.
+            "My card number is 4111 1111 1111 1111": ("personal_data", "blocked"),
         }
-        for query, classification in cases.items():
+        for query, (classification, outcome) in cases.items():
             with self.subTest(query=query):
                 record = process(query, cache=cache)
                 self.assertEqual(record.cache.status, "bypass")
                 self.assertIn(classification, record.cache.reason)
-                self.assertEqual(record.final_status, "answered")
+                self.assertEqual(record.final_status, outcome)
         # Bypassed queries are not stored either, so repeating one still bypasses.
         self.assertEqual(process("What is my account balance?", cache=cache).cache.status, "bypass")
 

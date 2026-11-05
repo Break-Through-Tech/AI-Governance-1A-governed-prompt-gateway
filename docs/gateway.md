@@ -42,15 +42,29 @@ graph TD;
 	classDef last fill:#bfb6fc
 ```
 
-| Node | Stage | Owner | Ends the run when |
+| Node | Stage | Code behind it | Ends the run when |
 | --- | --- | --- | --- |
-| guardrails | 1. Input guardrails | Team A | status is `block` |
-| cache | 2. Semantic cache | Team B (adapter: `gateway/cache_adapter.py`) | status is `hit` |
-| intent | 3. Intent and system prompt | Team C | never |
-| router | 4. Model tier and cost estimate | us | never |
-| generate | 5. LLM response | us | the provider returns `error` |
-| compliance | 6. Output compliance | Team D | status is not `pass` |
-| cache_store | store the answer for reuse | us | always (last node) |
+| guardrails | 1. Input guardrails | stub (Team A) | status is `block` |
+| cache | 2. Semantic cache | `banking_chatbot/cache.py` via `gateway/cache_adapter.py` | status is `hit` |
+| intent | 3. Intent | `banking_chatbot/intent/` via `gateway/intent_adapter.py` | never |
+| router | 4. Model tier and cost estimate | `gateway/router.py` | never |
+| generate | 5. LLM response | `gateway/llm.py` | the provider returns `error` |
+| compliance | 6. Output compliance | `banking_chatbot/compliance*.py` via `gateway/compliance_adapter.py` | status is not `pass` |
+| cache_store | store the answer for reuse | `gateway/cache_adapter.py` | always (last node) |
+
+## What each stage really does today
+
+| Stage | State | What is missing |
+| --- | --- | --- |
+| 1. Guardrails | Stub, allows everything | Team A's `guardrails.py` has the regex patterns but imports packages that do not exist, and defines no function to call. Until it lands, raw queries (including any card number a user types) reach the audit log unmasked. |
+| 2. Cache | Working: exact and semantic | Joohye's approval of using the system prompt as the cache's "source", since non-RAG has no retrieved rows. |
+| 3. Intent | Wired, inactive | The trained model file `banking_chatbot/intent/models/banking77_classifier.joblib` is git-ignored and not in the repo, and `litellm` is not in `requirements.txt`. Until both exist the stage reports `unknown` and says which is missing. Team C's tier suggestion is recorded in `intent.suggested_tier`; the router does not follow it. |
+| 4. Router | Working | Two known misroutes out of 60 labelled queries (`python -m gateway.router_eval data/router_eval.csv`). |
+| 5. LLM | Working: simulated and live Gemini | |
+| 6. Compliance | Local checks enforced | The format, sensitive-data and contact validators run on every answer. The semantic reviewer does not: it requires retrieved references, which non-RAG does not have. `output_compliance.unreviewed` lists the rules that were therefore not checked. |
+
+A failed compliance check withholds the answer: the customer sees the policy's fallback
+message, the rejected text is removed from the decision record, and it is never cached.
 
 ## Three files, three jobs
 
@@ -76,12 +90,15 @@ python -m gateway.workload run data/workload_sample.csv         # 30 queries, si
 python -m gateway.workload summarize var/decisions.jsonl       # cost vs baseline from the audit log
 python -m streamlit run gateway_app.py --server.port 8502       # the demo page
 python -m unittest discover -s tests -q
+python scripts/intent_live_check.py                             # Team C's own check: needs litellm, the model file, and makes live calls
 ```
 
 ## Plugging a stage in
 
 1. Open `gateway/stages.py` and replace the body of your function. Return the dataclass
-   named in its signature; the fields are in `gateway/schema.py`.
+   named in its signature; the fields are in `gateway/schema.py`. If your code lives in
+   `banking_chatbot/`, put the translation between your types and that dataclass in a
+   small `gateway/<stage>_adapter.py`, as cache, intent and compliance do.
 2. Run the tests. `tests/test_graph.py` already exercises the block, cache-hit, error and
    compliance-fail exits, so a stage that ends the run is covered.
 3. Nothing in `graph.py` changes unless the *order* changes.

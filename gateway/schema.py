@@ -49,6 +49,7 @@ class IntentDecision:
     label: str = "unknown"
     confidence: float = 0.0
     prompt_template: str = "default"
+    suggested_tier: str | None = None  # Team C's tier suggestion; recorded, not acted on
     reason: str = ""
 
 
@@ -88,10 +89,14 @@ class GenerationResult:
 
 @dataclass
 class ComplianceDecision:
-    """Stage 6. Does the answer contain unauthorized advice or guarantees?"""
+    """Stage 6. May this answer be released to the customer?"""
 
     status: str = "pass"  # pass | fail
-    flags: list[str] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)  # policy rule ids that failed
+    checks: list[str] = field(default_factory=list)  # compliance components that ran
+    unreviewed: list[str] = field(default_factory=list)  # policy rules no component fully checked
+    policy_version: str = ""
+    message: str = ""  # user-safe text shown instead of a withheld answer
     reason: str = "stub: compliance not implemented yet"
 
 

@@ -11,7 +11,7 @@ modules, where they are tested on their own.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -118,11 +118,13 @@ def generate_node(state: GatewayState, runtime: Runtime[Deps]) -> dict:
 
 
 def compliance_node(state: GatewayState) -> dict:
-    decision = stages.check_compliance(state["generation"].answer)
-    return {
-        "output_compliance": decision,
-        "final_status": "answered" if decision.status == "pass" else "blocked",
-    }
+    decision = stages.check_compliance(state["query"], state["generation"])
+    if decision.status == "pass":
+        return {"output_compliance": decision, "final_status": "answered"}
+    # A rejected answer may contain exactly what the check caught (a card number, say), so it
+    # must not reach the customer or the audit log. Token counts stay: the cost was still paid.
+    withheld = replace(state["generation"], answer="", message="Answer withheld by output compliance.")
+    return {"output_compliance": decision, "generation": withheld, "final_status": "blocked"}
 
 
 def cache_store_node(state: GatewayState, runtime: Runtime[Deps]) -> dict:
