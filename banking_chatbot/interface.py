@@ -89,12 +89,20 @@ def render_result(turn: dict) -> None:
                 st.divider()
             else:
                 st.warning(generation["message"])
+        compliance = turn.get("compliance")
+        if compliance:
+            if compliance['decision'] == 'allow':
+                st.caption('Passed configured output checks.')
+            st.caption(f"Output review: {compliance['decision']}")
+            if 'elapsed_ms' in compliance:
+                st.caption(f"Review time: {compliance['elapsed_ms'] / 1000:.1f} s · "
+                           f"Review tokens: {compliance.get('usage', {}).get('total_tokens', 'unavailable')}")
         cache = turn.get("cache") or {}
         cache_status = cache.get("status")
         if cache_status == "hit":
             match_label = "Semantic" if cache.get("match_type") == "semantic" else "Exact"
             st.success(
-                f"{match_label} cache hit · {cache.get('tokens_saved', 0)} tokens and "
+                f"{match_label} cache hit · {cache.get('tokens_saved', 0)} generation tokens and "
                 f"{cache.get('latency_saved_ms', 0) / 1000:.1f} s of generation avoided"
             )
         elif cache_status == "error":
@@ -106,7 +114,7 @@ def render_result(turn: dict) -> None:
         else:
             count = len(result["matches"])
             st.markdown(f"**{count} matching reference{'s' if count != 1 else ''}**")
-            st.caption("Original dataset answers, shown without rewriting.")
+            st.caption("Synthetic reference previews; disallowed contact and sensitive details are removed.")
             for rank, match in enumerate(result["matches"], start=1):
                 with st.container(border=True):
                     st.caption(f"MATCH {rank} · Similarity {match['score']:.3f} / 1.000")
@@ -156,7 +164,7 @@ def main() -> None:
         use_gemini = bool(api_key) and enabled
         if not api_key:
             st.caption("No key configured for this session. Retrieval remains available.")
-        st.caption("When enabled, your question, retrieved references, and up to 3 recent AI exchanges are sent to Google.")
+        st.caption("When enabled, generation and output review send your question, references, and approved conversation context to Google. Review adds a separate API call, including on cache hits.")
         with st.expander("Free API setup"):
             st.markdown("[Create a Gemini key in Google AI Studio](https://aistudio.google.com/api-keys)")
             st.caption("Use a project on the Free tier. Billing and quota follow your Google project; the app cannot enforce free billing. No automatic model switch or billing upgrade is performed.")
@@ -187,7 +195,7 @@ def main() -> None:
             f"Stale: {metrics['stale']} · Errors: {metrics['errors']}"
         )
         st.caption(
-            f"Avoided: {metrics['tokens_avoided']} tokens and "
+            f"Avoided: {metrics['tokens_avoided']} generation tokens and "
             f"{metrics['generation_latency_avoided_ms'] / 1000:.1f} s generation latency. "
             "Estimated cost avoided is unavailable until a versioned price model is configured."
         )

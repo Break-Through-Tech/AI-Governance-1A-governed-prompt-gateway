@@ -341,6 +341,11 @@ class ResponseCache(ABC):
         """Persist an eligible generated response for later reuse."""
 
 
+    def invalidate(self, entry_id: str) -> None:
+        """Remove a rejected entry; adapters must implement rejection eviction."""
+        raise NotImplementedError
+
+
 def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -789,6 +794,13 @@ class SQLiteResponseCache(ResponseCache):
             )
         except (OSError, sqlite3.Error, TypeError, ValueError, RuntimeError, OverflowError):
             return self._error("Semantic lookup failed; generation should continue.")
+
+    def invalidate(self, entry_id: str) -> None:
+        try:
+            with self._lock, closing(self._connect()) as connection, connection:
+                connection.execute("DELETE FROM response_cache WHERE entry_id = ?", (entry_id,))
+        except (OSError, sqlite3.Error):
+            pass  # Revalidation still prevents release if eviction is unavailable.
 
     def put(self, context: CacheContext, generation: Mapping[str, object]) -> None:
         if self._initialization_error:

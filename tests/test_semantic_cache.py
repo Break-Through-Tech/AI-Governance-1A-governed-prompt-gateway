@@ -1,3 +1,4 @@
+from compliance_fakes import service
 import tempfile
 import unittest
 from pathlib import Path
@@ -81,6 +82,9 @@ def generation(answer="Use the banking app."):
 
 class SemanticCacheTests(unittest.TestCase):
     def setUp(self):
+        gate = patch('banking_chatbot.chat.build_compliance_service', side_effect=lambda **kw: service())
+        gate.start()
+        self.addCleanup(gate.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "semantic.sqlite3"

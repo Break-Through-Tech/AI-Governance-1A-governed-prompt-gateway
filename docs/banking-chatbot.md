@@ -155,3 +155,168 @@ retrieval could be added later; the current work intentionally has no model depe
 - `tests/test_banking.py`: data integrity, provenance, retrieval, and CLI checks.
 - `tests/test_interface.py`: Streamlit integration checks for results, history, reset,
   settings, session isolation, example questions, and missing-data recovery.
+
+## Output compliance
+
+Every generated answer and exact/semantic cache candidate now passes a synchronous
+LangGraph release gate. Local format, sensitive-data, and contact checks run first.
+A separate Gemini reviewer checks grounding and banking policy with structured JSON.
+The application decides `allow`, `block`, or `unverified`; missing checks, provider
+failures, invalid verdicts, and uncertainty never release the draft. No automatic
+repair or human approval queue is enabled.
+
+Install the pinned dependencies in `requirements.txt`. The generator retains its
+existing model configuration. Choose the independent reviewer before launch:
+
+```bash
+export COMPLIANCE_REVIEW_MODEL=gemini-3.8-flash
+# Alternatives: gemini-3.5-flash-lite or legacy gemini-2.5-flash if accessible.
+python -m streamlit run app.py
+```
+
+The reviewer uses the configured Gemini credential. Review is an additional API call
+and may incur charges, including on cache hits. Invalid reviewer configuration
+withholds generated answers. Retrieval-only mode remains offline; source previews
+remove recognized sensitive content and demo contacts but do not claim semantic
+approval. Cached entries from the previous policy scope are not reused. Cache
+savings displayed in the UI describe avoided generation only; review usage and
+latency are reported separately, and no dollar savings are claimed without prices.
+
+The first release prohibits all output phone numbers, email addresses, and URLs
+for this fictional demo. Regex/checksum detectors are deliberately limited and may
+miss identifiers or overblock legitimate examples. The reviewer is fallible and
+may share errors with the generator. “Passed configured checks” is not certification
+of correctness or legal compliance. Use synthetic data.
+
+### Replacing components
+
+Implement `OutputValidator.validate(ValidationRequest) -> CheckResult` or
+`ComplianceReviewer.review(ReviewRequest) -> ReviewResult`, and provide a versioned
+`ComponentDescriptor`. Contracts live in `compliance_contracts.py`.
+
+```python
+from banking_chatbot.compliance_config import build_compliance_service
+
+service = build_compliance_service(
+    reviewer=my_reviewer,
+    validators=(my_format_validator, my_sensitive_validator, my_contact_validator),
+)
+# Pass compliance_service=service to chat(), or call service.evaluate(candidate, context).
+```
+
+Alternatively register trusted validator factories with `validator_factories` and
+select them with `validator_ids`; `reviewer_factory` supplies provider construction.
+The graph and UI contain no concrete reviewer imports. Changing a model setting,
+component version, policy, prompt, or schema changes the compliance fingerprint
+included in cache scope. Explicit required checks prevent replacing a comprehensive
+reviewer with an adapter that covers only some rules. Test-only adapters require an
+explicit `allow_test=True` composition option and are never selected from environment
+configuration. Update descriptor versions whenever implementation behavior changes.
+
+Adapters return one explicit outcome per declared rule. The service rejects missing
+or duplicate findings, unknown source IDs, inconsistent claim metadata, and a
+passing grounding verdict with unsupported claims. A failure wins over passes;
+an unavailable required check yields `unverified`. Private claims and drafts remain
+in transient local objects, not graph state, returned turns, or routine audit output.
+Only previously approved answers are included in model history.
+
+### Evaluation
+
+```bash
+# Offline: validate fixture contracts and split separation. Makes no API calls.
+python -m banking_chatbot.compliance_evaluation
+python -m unittest discover -s tests -v
+
+# Explicit live synthetic evaluation: uses the configured Gemini key and may cost money.
+COMPLIANCE_REVIEW_MODEL=gemini-3.8-flash python -m banking_chatbot.compliance_evaluation \
+  --live --split development --limit 10 --output reports/compliance-flash.json
+COMPLIANCE_REVIEW_MODEL=gemini-3.5-flash-lite python -m banking_chatbot.compliance_evaluation \
+  --live --split development --limit 10 --output reports/compliance-lite.json
+```
+
+`data/compliance/seed.jsonl` contains 24 draft-labeled synthetic scenarios, split by
+scenario family. These are seed fixtures, not the planned independently labeled
+240-example benchmark. Expand and adjudicate labels with the team before model
+selection or a production release. Reports distinguish uncertain verdicts from
+blocks and report compliant withholding as well as violation recall, false blocks,
+unsafe releases, per-rule results, tokens, and latency. Do not tune on held-out cases.
+Actual model availability and review quality must be established through live tests;
+unit tests mock network calls and cannot establish semantic accuracy.
+
+### Release 2: bounded repair
+
+Set `COMPLIANCE_REPAIR_MODE=once` to enable one regeneration attempt for
+`RESPONSE_FORMAT`, `SUPPORTED_FACTS`, or `FICTIONAL_CONTEXT` failures. The default
+is `off` while live evaluation is pending. Unknown modes disable generated-answer
+release with a configuration error. This can add one generation and another review
+call; the existing generator may retry a transient HTTP failure once.
+
+The repair adapter receives the question, sanitized evidence, trusted policy, and
+rule IDs. It never receives the rejected draft or reviewer prose. The generated
+candidate runs through all local and semantic checks again. A second failure,
+exception, incomplete repair, or uncertain verdict returns the fixed fallback.
+Sensitive-data, contacts, claimed actions, recommendations, and content-safety
+failures are not repairable. Payload limits and local sensitive-data screening
+apply before repair, even when the first pass stopped at a local format check.
+
+Implement `OutputRepairer.repair(RepairRequest) -> RepairResult` to replace the
+repair model and inject it using `repairer=` in the service factory. Its descriptor
+uses role ID `repairer`. The default adapter reuses the existing Gemini generator
+and its current default model. Repair configuration participates in cache identity.
+A cache candidate requiring repair is evicted; the failed original is never served.
+Audit results include attempt count and initial rule IDs. Usage aggregates successful
+review/repair calls; unknown or failed-call billing remains unavailable. Regenerated
+answers do not inherit token counts or latency measurements from the original draft.
+
+This release does not establish improved semantic accuracy. Compare repair enabled
+and disabled on independently labeled cases before enabling it for broader use.
+
+### Release 3: independent labeling and paired comparisons
+
+Create separate blank annotation files for two people. Each person reviews the
+synthetic cases and fills `decision` with `allow` or `block`; leave it `null` if
+undecided. Templates omit the draft expected labels. The dataset remains the source
+for the question, answer, and evidence. Use local reviewer identifiers rather than
+personal contact information.
+
+```bash
+python -m banking_chatbot.compliance_labels --reviewer reviewer-a --output /tmp/labels-a.json
+python -m banking_chatbot.compliance_labels --reviewer reviewer-b --output /tmp/labels-b.json
+```
+
+The adjudicator requires distinct declared reviewer IDs, the exact dataset digest,
+complete case-ID coverage, and agreement. Disagreement or missing labels stays
+unresolved; draft labels are never silently promoted to independent labels. This
+is an offline team workflow, not authenticated identity verification or an application
+human-approval queue. Templates refuse to overwrite existing annotation files.
+
+Preview the workload without reading credentials or making network calls:
+
+```bash
+python -m banking_chatbot.compliance_benchmark --repair both --repeats 2 \
+  --labels /tmp/labels-a.json /tmp/labels-b.json \
+  --output /tmp/comparison-plan.json
+```
+
+Add `--live` to execute (may incur charges). `--models` selects reviewer candidates;
+`--repair off|once|both` selects explicit variants independent of the application's
+environment setting. The same cases are paired across variants with alternating
+model order. `--limit` caps distinct cases and `--repeats` caps observations per case.
+Dry-run reports include a conservative maximum HTTP call count, including repair
+and the existing generator's transient-error retry. No automatic model deployment
+or configuration change follows a benchmark.
+
+For a release-quality assessment, use independently agreed held-out labels and an
+expanded dataset, for example `--split held_out --limit 120 --max-p95-ms 10000` (choose
+the latency budget before tuning). The bundled 12 held-out seed cases are insufficient.
+Reports include per-rule metrics, repeated-decision inconsistency, observed token
+usage, configuration fingerprints, and explicit readiness failures. Repeated runs do
+not increase the number of distinct test cases. All policy rules must be represented.
+Production approval stays false: policy sign-off and measured monetary cost remain
+separate requirements. Token data is not a dollar-cost estimate.
+
+Repaired outputs require new independent labels. Their original draft labels are
+excluded from correctness metrics and cannot support repair-release approval.
+Unverified outcomes remain separate from detected violations; withholding every
+answer cannot pass the quality gate. Reports contain case IDs and metrics, not raw
+candidate text, credentials, or evidence excerpts.

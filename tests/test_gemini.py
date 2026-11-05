@@ -1,3 +1,4 @@
+from compliance_fakes import service
 import json
 import os
 import tempfile
@@ -30,6 +31,11 @@ def response(status=200, body=None):
 
 
 class GeminiTests(unittest.TestCase):
+    def setUp(self):
+        gate = patch('banking_chatbot.chat.build_compliance_service', side_effect=lambda **kw: service())
+        gate.start()
+        self.addCleanup(gate.stop)
+
     @patch("banking_chatbot.gemini.requests.post")
     def test_request_contract_and_usage(self, post):
         post.return_value = response()
@@ -48,7 +54,7 @@ class GeminiTests(unittest.TestCase):
         self.assertNotIn(FAKE_KEY, json.dumps(result))
 
     def test_prompt_history_is_bounded_and_sources_are_data(self):
-        history = [{"query": str(i), "api_key": FAKE_KEY, "generation": {"status": "generated", "answer": "a" * 3000}} for i in range(9)]
+        history = [{"query": str(i), "compliance": {"decision": "allow"}, "api_key": FAKE_KEY, "generation": {"status": "generated", "answer": "a" * 3000}} for i in range(9)]
         payload = build_payload("q", MATCHES, history)
         data = json.loads(payload["contents"][0]["parts"][0]["text"])
         self.assertEqual([h["question"] for h in data["recent_conversation"]], ["6", "7", "8"])
@@ -195,7 +201,7 @@ class GeminiTests(unittest.TestCase):
             )
             changed_context = chat(
                 "How do I change my PIN?",
-                [{"query": "Earlier question", "generation": {
+                [{"query": "Earlier question", "compliance": {"decision": "allow"}, "generation": {
                     "status": "generated", "answer": "Earlier answer",
                 }}],
                 retriever=retriever, use_gemini=True, api_key=FAKE_KEY, cache=cache,

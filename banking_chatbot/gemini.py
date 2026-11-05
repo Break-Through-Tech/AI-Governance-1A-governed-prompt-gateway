@@ -59,7 +59,7 @@ def recent_conversation(history: list[dict]) -> list[dict[str, str]]:
     context = []
     for turn in history[-3:]:
         generation = turn.get("generation") or {}
-        if generation.get("status") == "generated":
+        if generation.get("status") == "generated" and turn.get("compliance", {}).get("decision") == "allow":
             context.append({"question": turn["query"][:1000], "answer": generation["answer"][:2000]})
     return context
 

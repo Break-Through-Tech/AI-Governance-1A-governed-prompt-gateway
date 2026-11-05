@@ -1,3 +1,4 @@
+from compliance_fakes import service
 """Exercise real Streamlit chat state and the local retriever together."""
 
 import re
@@ -14,6 +15,9 @@ from banking_chatbot.data import ROOT
 
 class InterfaceTests(unittest.TestCase):
     def setUp(self):
+        gate = patch('banking_chatbot.chat.build_compliance_service', side_effect=lambda **kw: service())
+        gate.start()
+        self.addCleanup(gate.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         # Never let a developer's configured credential affect UI tests.

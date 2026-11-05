@@ -196,3 +196,13 @@ Cite relevant papers, articles, or resources that supported your project.
 ## 🙏 **Acknowledgements** (Optional but encouraged)
 
 Thank your Challenge Advisor, host company representatives, TA, and others who supported your project.
+
+## Output compliance gate
+
+Generated and cached answers pass local checks plus a separate structured Gemini
+review before display or cache insertion. Set `COMPLIANCE_REVIEW_MODEL` to select
+`gemini-3.8-flash` (default), `gemini-3.5-flash-lite`, or accessible legacy
+`gemini-2.5-flash`. Review adds an API call; failures withhold the candidate.
+Retrieval-only use remains offline. See [implementation and evaluation](docs/banking-chatbot.md#output-compliance)
+and the [modular implementation plan](plans/output-compliance-implementation-plan.md).
+The model choice is provisional pending independently labeled live evaluation.

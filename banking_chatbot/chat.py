@@ -1,6 +1,11 @@
 """Reusable chat operation shared by the UI and tests."""
 
 from time import perf_counter
+from uuid import uuid4
+
+from .compliance_config import build_compliance_service, load_policy
+from .compliance_contracts import Candidate, ComplianceContext, Reference
+from .compliance_validators import safe_preview
 
 from .cache import (
     CacheAudit,
@@ -38,6 +43,7 @@ def _cache_context(
     retriever: Retriever,
     model: str,
     embedding_model_version: str | None = None,
+    compliance_fingerprint: str = "",
 ) -> CacheContext:
     sources = tuple(
         SourceFingerprint(
@@ -50,7 +56,7 @@ def _cache_context(
         normalized_query=query,
         tenant_or_jurisdiction="banking-demo",
         policy_classification=TEMPORARY_POLICY_CLASSIFICATION,
-        policy_version=TEMPORARY_CACHE_POLICY_VERSION,
+        policy_version=TEMPORARY_CACHE_POLICY_VERSION + ":" + compliance_fingerprint,
         knowledge_base_digest=stable_digest(retriever.records),
         sources=sources,
         system_prompt_version=SYSTEM_PROMPT_VERSION,
@@ -77,7 +83,7 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
          api_key: str = "", use_gemini: bool = False, model: str = DEFAULT_MODEL,
          top_k: int = 3, threshold: float = DEFAULT_THRESHOLD,
          cache: ResponseCache | None = None,
-         cache_mode: CacheMode | str = CacheMode.EXACT) -> dict:
+         cache_mode: CacheMode | str = CacheMode.EXACT, compliance_service=None) -> dict:
     try:
         mode = cache_mode if isinstance(cache_mode, CacheMode) else CacheMode(cache_mode)
     except ValueError as error:
@@ -97,10 +103,17 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
         "cache": _bypass("Gemini generation is disabled for this request.").to_dict(),
     }
     if not use_gemini:
-        return turn
+        return _public_turn(turn)
     if not result["matches"]:
         turn["cache"] = _bypass("No retrieved references support generation or reuse.").to_dict()
-        return turn
+        return _public_turn(turn)
+
+    try:
+        compliance_service = compliance_service or build_compliance_service(api_key=api_key)
+    except Exception:
+        turn['generation'] = {'status': 'unverified', 'message': load_policy().fallback, 'model': model}
+        turn['compliance'] = {'decision': 'unverified', 'reason_codes': ['CONFIGURATION_ERROR']}
+        return _public_turn(turn)
 
     eligibility = query_eligibility
     if eligibility.cacheable:
@@ -124,12 +137,13 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
         context = _cache_context(
             result["query"], result["matches"], history, retriever, model,
             embedding_model_version=embedding_version,
+            compliance_fingerprint=compliance_service.fingerprint,
         )
         lookup = cache.lookup_exact(context)
         turn["cache"] = lookup.audit.to_dict()
         if lookup.audit.status is CacheStatus.HIT:
             turn["generation"] = dict(lookup.generation or {})
-            return turn
+            return _release(turn, compliance_service, history, cache, "exact_cache")
         if mode in {CacheMode.SEMANTIC, CacheMode.SEMANTIC_SHADOW}:
             semantic = cache.lookup_semantic(context)
             lookup = semantic
@@ -144,7 +158,7 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
                 )
                 if candidate_eligibility.cacheable and mode is CacheMode.SEMANTIC:
                     turn["generation"] = dict(semantic.generation or {})
-                    return turn
+                    return _release(turn, compliance_service, history, cache, "semantic_cache")
                 if mode is CacheMode.SEMANTIC_SHADOW:
                     turn["cache"] = CacheAudit(
                         status=CacheStatus.MISS,
@@ -161,10 +175,13 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
         turn["generation"] = generate_answer(message, result["matches"], history, api_key, model)
     except GenerationError as exc:
         turn["generation"] = {"status": "error", "message": str(exc), "model": model}
-        return turn
+        return _public_turn(turn)
+
+    turn = _release(turn, compliance_service, history, cache, "fresh")
 
     if (
-        context is not None
+        turn["generation"]["status"] == "generated"
+        and context is not None
         and lookup is not None
         and turn["cache"].get("status") != CacheStatus.HIT.value
     ):
@@ -188,4 +205,51 @@ def chat(message: str, history: list[dict], *, retriever: Retriever,
                 audit,
                 f"Generated response was not stored: {output_eligibility.reason}",
             ).to_dict()
+    return _public_turn(turn)
+
+
+def _public_turn(turn):
+    # Sources are a separate display boundary, including retrieval-only mode.
+    result = dict(turn['result'])
+    result['matches'] = [dict(m, question=safe_preview(m['question']), answer=safe_preview(m['answer']))
+                         for m in result['matches']]
+    turn['result'] = result
     return turn
+
+
+def _release(turn, service, history, cache, origin):
+    generation = turn['generation']
+    context = ComplianceContext(request_id=str(uuid4()), question=turn['query'],
+        references=tuple(Reference(id=m['id'], question=m['question'], answer=m['answer'])
+                         for m in turn['result']['matches'][:5]),
+        history=tuple(str(t['query']) + '\n' + str(t['generation']['answer'])
+            for t in history[-3:] if t.get('compliance', {}).get('decision') == 'allow'
+            and t.get('generation', {}).get('status') == 'generated'))
+    decision = service.evaluate(Candidate(text=generation.get('answer', ''),
+        finish_reason=generation.get('finish_reason', ''), origin=origin), context)
+    turn['compliance'] = decision.model_dump(exclude={'final_answer'})
+    if decision.repair_attempts and cache is not None and turn['cache'].get('entry_id'):
+        try:
+            cache.invalidate(turn['cache']['entry_id'])
+        except Exception:
+            pass
+        turn['cache'].update(status=CacheStatus.STALE.value, tokens_saved=0, latency_saved_ms=0,
+                             reason='Cached candidate required repair and was invalidated.')
+    if decision.decision == 'allow':
+        turn['generation'] = dict(generation, answer=decision.final_answer)
+        if decision.repair_attempts:
+            repair = next(c for c in decision.components if c.component_id == 'repairer')
+            turn['generation'].update(model=repair.model, finish_reason='STOP', elapsed_ms=0,
+                usage={'input_tokens': None, 'output_tokens': None, 'total_tokens': None})
+    else:
+        turn['generation'] = {'status': decision.decision, 'message': decision.final_answer,
+                              'model': generation.get('model', '')}
+        if cache is not None and turn['cache'].get('entry_id'):
+            try:
+                cache.invalidate(turn['cache']['entry_id'])
+            except Exception:
+                pass  # A failed eviction must never release the rejected candidate.
+        turn['cache']['reason'] += ' Response not stored: output compliance withheld the candidate.'
+        if turn['cache']['status'] == CacheStatus.HIT.value:
+            turn['cache'].update(status=CacheStatus.STALE.value, tokens_saved=0, latency_saved_ms=0)
+    return _public_turn(turn)
