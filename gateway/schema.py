@@ -28,6 +28,13 @@ class GuardrailDecision:
     status: str = "allow"  # allow | block | escalate
     toxicity: float | None = None
     jailbreak: bool | None = None
+    masked: list[str] = field(default_factory=list)  # kinds of sensitive value removed from the question
+    policy: str | None = None  # title of the policy rule a blocked question broke
+    model: str | None = None  # the model that judged the question, if one did
+    input_tokens: int | None = None  # tokens that check cost; None when no model was called
+    output_tokens: int | None = None
+    cost_usd: float | None = None  # known when the check ran on a model in the price table
+    elapsed_ms: float | None = None
     reason: str = "stub: guardrails not implemented yet"
 
 
@@ -104,7 +111,7 @@ class ComplianceDecision:
 class DecisionRecord:
     """The full audit record for one request. ``None`` means the stage never ran."""
 
-    query: str
+    query: str  # the question after masking: sensitive values are never stored
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     timestamp: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -116,6 +123,7 @@ class DecisionRecord:
     generation: GenerationResult | None = None
     output_compliance: ComplianceDecision | None = None
     final_status: str = "pending"  # pending | answered | blocked | cached | error
+    response: str = ""  # what the customer is shown: the answer, or why there is none
 
     def to_dict(self) -> dict:
         """Nested plain dict; ``asdict`` recurses into the stage dataclasses."""

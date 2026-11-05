@@ -1,9 +1,10 @@
 """The six stage functions, one per team, in pipeline order.
 
 This file is the plug-in point. Each function either calls a teammate's code
-through a small adapter module or is still a stub (guardrails). Replacing a
+through a small adapter module. Replacing a
 body changes nothing else in the package: the graph (``graph.py``) only calls
-these names, and the record shape (``schema.py``) is fixed.
+these names, and the record shape (``schema.py``) is fixed. Every stage now has
+real code behind it.
 
 Stages we own (router, generation) live in their own modules and are imported
 here so that every stage can be found from one place.
@@ -24,11 +25,22 @@ from .schema import (
 )
 
 
-# ---- stage 1: Team A --------------------------------------------------------
+# ---- stage 1: Team A (adapter in guardrails_adapter.py) ----------------------
 
-def check_guardrails(query: str) -> GuardrailDecision:
-    """Stub: allows everything. Team A replaces the body with the policy engine."""
-    return GuardrailDecision()
+class InputGuard(Protocol):
+    """What the pipeline needs from an input guardrail. ``guardrails_adapter.InputGuardrails`` implements it."""
+
+    name: str
+
+    def check(self, query: str) -> GuardrailDecision: ...
+
+
+def check_guardrails(query: str, guardrails: InputGuard | None = None) -> GuardrailDecision:
+    """Team A's input policy (``guardrails_adapter.py``). It needs a live model call, so it is
+    passed in like the cache; without one the stage records that nothing was checked."""
+    if guardrails is None:
+        return GuardrailDecision(reason="no policy check configured: the question was masked but not checked")
+    return guardrails.check(query)
 
 
 # ---- stage 2: Team B (adapter in cache_adapter.py) --------------------------

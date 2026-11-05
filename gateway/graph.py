@@ -20,6 +20,7 @@ from langgraph.runtime import Runtime
 from . import stages
 from .config import GatewayConfig
 from .llm import Provider
+from .masking import mask_sensitive
 from .prompts import system_prompt
 from .router import route
 from .schema import (
@@ -30,7 +31,7 @@ from .schema import (
     IntentDecision,
     RouterDecision,
 )
-from .stages import Cache
+from .stages import Cache, InputGuard
 
 
 # ---- state: the one dictionary that travels through a run -----------------------------
@@ -38,7 +39,7 @@ from .stages import Cache
 class GatewayState(TypedDict, total=False):
     """Keys mirror ``DecisionRecord``. A missing stage key means that stage never ran."""
 
-    # inputs, set once before the run starts
+    # inputs, set once before the run starts (the guardrails node replaces query with its masked form)
     query: str
     intent_override: str | None
     # working value: produced by the intent node, read by the router and generate nodes
@@ -67,13 +68,17 @@ class Deps:
     provider: Provider
     config: GatewayConfig
     cache: Cache | None = None
+    guardrails: InputGuard | None = None
 
 
 # ---- nodes: each wraps one stage function and returns only the keys it produced -------
 
-def guardrails_node(state: GatewayState) -> dict:
-    decision = stages.check_guardrails(state["query"])
-    update: dict = {"input_guardrails": decision}
+def guardrails_node(state: GatewayState, runtime: Runtime[Deps]) -> dict:
+    # Mask first. Writing "query" back into the state replaces it for every later node, so the
+    # policy check, the cache, the model and the audit record only ever see the masked question.
+    query, removed = mask_sensitive(state["query"])
+    decision = replace(stages.check_guardrails(query, runtime.context.guardrails), masked=removed)
+    update: dict = {"query": query, "input_guardrails": decision}
     if decision.status == "block":
         update["final_status"] = "blocked"  # the run ends here, see after_guardrails
     return update

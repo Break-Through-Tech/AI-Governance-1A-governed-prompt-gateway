@@ -106,7 +106,7 @@ def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | 
     tiers: Counter[str] = Counter()
     model_calls = 0
     input_tokens = output_tokens = 0
-    gateway_cost = baseline_cost = 0.0
+    gateway_cost = baseline_cost = guardrail_cost = 0.0
     total = 0
 
     for raw in records:
@@ -114,6 +114,9 @@ def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | 
         total += 1
         outcomes[record.get("final_status", "unknown")] += 1
         baseline_cost += _baseline_cost(record, config)
+
+        # The input guardrail is a model call made on every request, blocked and cached ones too.
+        guardrail_cost += float((record.get("input_guardrails") or {}).get("cost_usd") or 0.0)
 
         router = record.get("router")
         generation = record.get("generation")
@@ -131,6 +134,7 @@ def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | 
             output_tokens += out
             gateway_cost += estimate_cost(inp, out, config.tier(router["tier"]))
 
+    gateway_cost += guardrail_cost
     savings = baseline_cost - gateway_cost
     return {
         "requests": total,
@@ -139,7 +143,8 @@ def summarize(records: Iterable[DecisionRecord | dict], config: GatewayConfig | 
         "model_calls": model_calls,
         "tokens": {"input": input_tokens, "output": output_tokens},
         "cost": {
-            "gateway_usd": round(gateway_cost, 6),
+            "gateway_usd": round(gateway_cost, 6),  # model answers plus guardrail checks
+            "guardrails_usd": round(guardrail_cost, 6),
             "baseline_usd": round(baseline_cost, 6),
             "savings_usd": round(savings, 6),
             "savings_pct": round(100 * savings / baseline_cost, 1) if baseline_cost else 0.0,
@@ -161,7 +166,8 @@ def format_summary(summary: dict) -> str:
     lines += [
         f"Model calls: {summary['model_calls']}",
         f"Tokens: {summary['tokens']['input']} in / {summary['tokens']['output']} out",
-        f"Cost through gateway: ${cost['gateway_usd']:.6f}",
+        f"Cost through gateway: ${cost['gateway_usd']:.6f}"
+        + (f"  (of which input guardrail checks: ${cost['guardrails_usd']:.6f})" if cost.get('guardrails_usd') else ""),
         f"Cost with no gateway: ${cost['baseline_usd']:.6f}  (everything to the baseline tier)",
         f"Savings: ${cost['savings_usd']:.6f}  ({cost['savings_pct']}%)",
     ]

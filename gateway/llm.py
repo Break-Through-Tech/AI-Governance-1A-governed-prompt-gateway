@@ -79,7 +79,8 @@ class GeminiProvider:
 
     def __init__(self, api_key: str | None = None, *, max_output_tokens: int = 1024,
                  temperature: float = 0.2, timeout: tuple[float, float] = (5, 40),
-                 max_attempts: int = 3, backoff_seconds: float = 1.0) -> None:
+                 max_attempts: int = 3, backoff_seconds: float = 1.0,
+                 max_query_chars: int = 2000) -> None:
         if api_key is None:
             load_dotenv()  # fills GEMINI_API_KEY from .env unless the shell already set it
             api_key = os.environ.get("GEMINI_API_KEY", "")
@@ -89,6 +90,7 @@ class GeminiProvider:
         self.timeout = timeout
         self.max_attempts = max_attempts
         self.backoff_seconds = backoff_seconds
+        self.max_query_chars = max_query_chars
 
     def _error(self, model: str, message: str, started: float) -> GenerationResult:
         return GenerationResult(status="error", provider=self.name, model=model, message=message,
@@ -100,7 +102,7 @@ class GeminiProvider:
             config["thinkingConfig"] = {"thinkingLevel": thinking_level}
         return {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
-            "contents": [{"role": "user", "parts": [{"text": query[:2000]}]}],
+            "contents": [{"role": "user", "parts": [{"text": query[:self.max_query_chars]}]}],
             "generationConfig": config,
         }
 

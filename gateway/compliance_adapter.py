@@ -28,7 +28,24 @@ from banking_chatbot.compliance_contracts import Candidate, ComplianceContext, V
 from .schema import ComplianceDecision, GenerationResult
 
 LOCAL_VALIDATORS = ("format", "sensitive", "contact")
-WITHHELD = "This answer was withheld by the output compliance check."
+WITHHELD = "The answer was blocked because the compliance check could not run."
+
+# Customer-facing wording for the rules the local validators can fail. Any other rule falls
+# back to the description in her policy file.
+CUSTOMER_REASONS = {
+    "SENSITIVE_DATA": "it contained sensitive information, such as a card or account number",
+    "CONTACT_POLICY": "it contained a phone number, email address or web link, which this demo does not give out",
+    "RESPONSE_FORMAT": "it was longer than the {max_words}-word limit",
+    "OUTPUT_COMPLETE": "it was empty or cut off before it finished",
+}
+
+
+def _blocked_message(rules, policy) -> str:
+    reasons = [
+        CUSTOMER_REASONS.get(rule.id, "it broke this rule: " + rule.description.rstrip(".")).format(max_words=policy.max_words)
+        for rule in rules
+    ]
+    return "The answer was blocked because " + ", and ".join(reasons) + "."
 
 
 @lru_cache(maxsize=1)
@@ -65,7 +82,7 @@ def check(query: str, generation: GenerationResult) -> ComplianceDecision:
         for validator in validators:
             failed.update(f.rule_id for f in validator.validate(request).findings if f.outcome != "pass")
     except Exception:
-        return ComplianceDecision(status="fail", flags=["CHECK_UNAVAILABLE"], message=policy.fallback,
+        return ComplianceDecision(status="fail", flags=["CHECK_UNAVAILABLE"], message=WITHHELD,
                                   reason="a compliance check could not run, so the answer is withheld", **common)
 
     if failed:
@@ -73,7 +90,7 @@ def check(query: str, generation: GenerationResult) -> ComplianceDecision:
         return ComplianceDecision(
             status="fail",
             flags=[rule.id for rule in rules],
-            message=policy.fallback,
+            message=_blocked_message(rules, policy),
             reason="failed: " + "; ".join(f"{rule.id} ({rule.description})" for rule in rules),
             **common,
         )

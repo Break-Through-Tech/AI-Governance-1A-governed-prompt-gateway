@@ -17,6 +17,7 @@ import streamlit as st
 
 from gateway.audit import DEFAULT_LOG_PATH, AuditLog
 from gateway.cache_adapter import GatewayCache
+from gateway.guardrails_adapter import InputGuardrails
 from gateway.config import load_config
 from gateway.env import load_dotenv
 from gateway.llm import GeminiProvider, SimulatedProvider
@@ -24,12 +25,12 @@ from gateway.pipeline import process
 from gateway.workload import load_queries, run_workload, summarize
 
 STAGES = [
-    ("input_guardrails", "1. Input guardrails", "Team A"),
-    ("cache", "2. Semantic cache", "Team B"),
-    ("intent", "3. Intent", "Team C"),
-    ("router", "4. Router", "us"),
-    ("generation", "5. LLM response", "us"),
-    ("output_compliance", "6. Output compliance", "Joohye"),
+    ("input_guardrails", "1. Input guardrails"),
+    ("cache", "2. Semantic cache"),
+    ("intent", "3. Intent"),
+    ("router", "4. Router"),
+    ("generation", "5. LLM response"),
+    ("output_compliance", "6. Output compliance"),
 ]
 # status value -> (Streamlit box, label). Anything else is shown neutrally.
 STATUS_STYLE = {
@@ -50,6 +51,11 @@ def gateway_cache(mode: str) -> GatewayCache:
     return GatewayCache(mode=mode, config=config())
 
 
+@st.cache_resource(show_spinner=False)
+def input_guardrails() -> InputGuardrails:
+    return InputGuardrails()
+
+
 def stage_status(name: str, block: dict | None) -> str | None:
     if block is None:
         return None
@@ -60,11 +66,11 @@ def stage_status(name: str, block: dict | None) -> str | None:
     return block.get("status")
 
 
-def render_stage(name: str, title: str, owner: str, block: dict | None) -> None:
+def render_stage(name: str, title: str, block: dict | None) -> None:
     status = stage_status(name, block)
     box, label = STATUS_STYLE.get(status, ("info", (status or "").upper()))
     with st.container(border=True):
-        st.markdown(f"**{title}**  \n<small>{owner}</small>", unsafe_allow_html=True)
+        st.markdown(f"**{title}**")
         if block is None:
             st.caption("did not run")
             return
@@ -83,6 +89,13 @@ def render_stage(name: str, title: str, owner: str, block: dict | None) -> None:
             st.caption(f"{block['label']} ({block['confidence']:.0%}) · template: {block['prompt_template']}")
             if block.get("reason"):
                 st.caption(block["reason"])
+        elif name == "input_guardrails":
+            if block.get("masked"):
+                st.caption("masked: " + ", ".join(block["masked"]))
+            st.caption(block.get("reason", ""))
+            if block.get("model"):
+                st.caption(f"{block['model']} · {block.get('input_tokens')} in / {block.get('output_tokens')} out · "
+                           f"{block.get('elapsed_ms') or 0:.0f} ms")
         elif name == "output_compliance":
             if block.get("flags"):
                 st.caption("failed rules: " + ", ".join(block["flags"]))
@@ -91,11 +104,41 @@ def render_stage(name: str, title: str, owner: str, block: dict | None) -> None:
             st.caption(block.get("reason", ""))
 
 
+def render_response(record: dict) -> None:
+    """The exchange as the customer sees it: their question, then the answer or why there is none."""
+    status = record["final_status"]
+    generation = record.get("generation") or {}
+    router = record.get("router") or {}
+    text = record.get("response") or generation.get("answer") or ""
+    with st.chat_message("user"):
+        st.write(record["query"])
+        removed = (record.get("input_guardrails") or {}).get("masked") or []
+        if removed:
+            st.caption("For your security, this was removed before your question was processed: "
+                       + ", ".join(removed) + ".")
+    with st.chat_message("assistant"):
+        if status == "blocked":
+            st.error(f"**Blocked.** {text}")
+        elif status == "error":
+            st.warning(text)
+        else:
+            st.write(text)
+            if status == "cached":
+                st.caption("Served from the response cache. No model was called.")
+            elif generation.get("simulated"):
+                st.caption("Simulated provider: this is a placeholder, not a model's answer. "
+                           "Turn on “Call Gemini for real” in the sidebar for an actual reply.")
+            else:
+                st.caption(f"Answered by {generation.get('model', '?')} ({router.get('tier', '?')})")
+
+
 def render_record(record: dict) -> None:
+    render_response(record)
+    st.subheader("How the gateway decided")
     columns = st.columns(3)
-    for index, (name, title, owner) in enumerate(STAGES):
+    for index, (name, title) in enumerate(STAGES):
         with columns[index % 3]:
-            render_stage(name, title, owner, record.get(name))
+            render_stage(name, title, record.get(name))
 
     router = record.get("router")
     if router:
@@ -105,19 +148,6 @@ def render_record(record: dict) -> None:
         b.metric("This request", f"${router['estimated_cost_usd']:.6f}")
         c.metric("No gateway", f"${router['baseline_cost_usd']:.6f}", help=f"Same tokens sent to {router['baseline_tier']}")
         d.metric("Saved", f"${router['savings_usd']:.6f}")
-
-    generation = record.get("generation")
-    compliance = record.get("output_compliance")
-    if compliance and compliance["status"] != "pass":
-        st.subheader("Answer")
-        st.warning(compliance.get("message") or "This answer was withheld by the output compliance check.")
-    elif generation and generation["status"] == "generated":
-        st.subheader("Answer")
-        if generation["provider"] == "cache":
-            st.caption(generation["message"] + " No model was called.")
-        elif generation["simulated"]:
-            st.caption("Simulated provider: no model was called.")
-        st.write(generation["answer"])
 
     st.subheader(f"Decision record · final status: {record['final_status']}")
     st.json(record, expanded=False)
@@ -129,43 +159,36 @@ def tab_single() -> None:
         st.header("Settings")
         load_dotenv()
         has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
-        live = st.toggle("Call Gemini for real", value=False, disabled=not has_key,
+        live = st.toggle("Call Gemini for real", value=has_key, disabled=not has_key,
                          help="Needs GEMINI_API_KEY in .env. Off = simulated provider, no network.")
         if not has_key:
             st.caption("No GEMINI_API_KEY found in .env, so only the simulated provider is available.")
+        guard = st.toggle("Input guardrails", value=has_key, disabled=not has_key,
+                          help="A policy check on the question. It is one extra Gemini call, "
+                               "made before the cache and the model.")
         intents = ["(let the classifier decide)"] + sorted(cfg.rules.intent_tiers)
         intent_choice = st.selectbox("Intent override", intents,
-                                     help="The intent classifier is a stub, so you can supply the label here.")
+                                     help="Leave this alone to let the intent classifier label the question, "
+                                          "or pick a label to force one.")
         intent = None if intent_choice.startswith("(") else intent_choice
         cache_mode = st.selectbox("Response cache", ["semantic", "exact", "semantic-shadow", "off"],
-                                  help="Joohye's cache. Ask the same question twice to see a hit; "
+                                  help="Ask the same question twice to see a hit; "
                                        "semantic also matches close paraphrases.")
         log = st.toggle("Write to audit log", value=True)
         st.divider()
         st.caption(f"Price table {cfg.version} · tiers: " + ", ".join(f"{t.name}={t.model}" for t in cfg.tiers.values()))
 
     st.write("Type a banking question and watch each stage decide.")
-    examples = {
-        "Simple": "How do I reset my PIN?",
-        "Numeric": "If I deposit $500 a month at 4% interest how much will I have after 5 years?",
-        "Comparison": "What is the difference between a current account and a savings account and which should I pick?",
-    }
-    cols = st.columns(len(examples))
-    picked = None
-    for col, (label, text) in zip(cols, examples.items()):
-        if col.button(label, use_container_width=True):
-            picked = text
-    typed = st.chat_input("Ask a banking question…")
-    query = picked or typed
+    query = st.chat_input("Ask a banking question…")
     if query:
         provider = GeminiProvider() if live else SimulatedProvider(cfg.rules.expected_output_tokens)
         with st.spinner("Calling Gemini…" if live else "Running the gateway…"):
             record = process(query, intent=intent, provider=provider, config=cfg,
                              audit=AuditLog(DEFAULT_LOG_PATH) if log else None,
-                             cache=None if cache_mode == "off" else gateway_cache(cache_mode))
+                             cache=None if cache_mode == "off" else gateway_cache(cache_mode),
+                             guardrails=input_guardrails() if guard else None)
         st.session_state["last_record"] = record.to_dict()
     if "last_record" in st.session_state:
-        st.markdown(f"**Query:** {st.session_state['last_record']['query']}")
         render_record(st.session_state["last_record"])
 
 

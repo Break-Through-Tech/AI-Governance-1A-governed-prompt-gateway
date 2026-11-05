@@ -31,7 +31,7 @@ def _modules() -> tuple | str:
             from banking_chatbot.intent import classifier, prompts
             _IMPORT = (classifier, prompts)
         except ImportError as exc:
-            _IMPORT = f"Team C's classifier could not be imported: {exc.name or exc} is not installed"
+            _IMPORT = f"the intent classifier could not be imported: {exc.name or exc} is not installed"
     return _IMPORT
 
 
@@ -43,7 +43,7 @@ def classify(query: str) -> IntentDecision:
     if classifier.MODEL_PIPELINE is None or classifier.LABEL_NAMES is None:
         # Their code would return a hardcoded ("general_banking_faq", 0.70) here. Recording a
         # made-up confidence in an audit log would be wrong, so say what is missing instead.
-        return IntentDecision(reason=f"Team C's classifier is merged but its model file is missing: {MODEL_FILE}")
+        return IntentDecision(reason=f"the intent classifier's model file is missing: {MODEL_FILE}")
 
     label, confidence = classifier.predict_intent(query)
     suggestion = prompts.get_prompt_and_routing_tier(label)["model_tier"]
@@ -51,5 +51,5 @@ def classify(query: str) -> IntentDecision:
         label=label,
         confidence=round(float(confidence), 4),
         suggested_tier=suggestion,
-        reason=f"Banking77 classifier (Team C); it suggests the {suggestion} tier",
+        reason=f"Banking77 classifier; it suggests the {suggestion} tier",
     )

@@ -11,8 +11,9 @@ from .audit import AuditLog
 from .config import GatewayConfig, load_config
 from .graph import GRAPH, STAGE_KEYS, Deps
 from .llm import Provider, SimulatedProvider
+from .response import customer_response
 from .schema import DecisionRecord
-from .stages import Cache
+from .stages import Cache, InputGuard
 
 
 def process(
@@ -23,6 +24,7 @@ def process(
     config: GatewayConfig | None = None,
     audit: AuditLog | None = None,
     cache: Cache | None = None,
+    guardrails: InputGuard | None = None,
 ) -> DecisionRecord:
     """Run ``query`` through the gateway, append the record to ``audit`` if given, and return it.
 
@@ -34,14 +36,15 @@ def process(
 
     state = GRAPH.invoke(
         {"query": query, "intent_override": intent},
-        context=Deps(provider=provider, config=config, cache=cache),
+        context=Deps(provider=provider, config=config, cache=cache, guardrails=guardrails),
     )
 
     record = DecisionRecord(
-        query=query,
+        query=state["query"],  # masked by stage 1
         final_status=state.get("final_status", "pending"),
         **{key: state.get(key) for key in STAGE_KEYS},  # a key the run never reached stays None
     )
+    record.response = customer_response(record)
     if audit is not None:
         audit.append(record)
     return record

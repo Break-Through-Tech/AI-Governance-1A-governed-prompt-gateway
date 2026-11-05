@@ -80,9 +80,9 @@ class CacheAdapterTests(unittest.TestCase):
             "What is my account balance?": ("personalized", "answered"),
             "Transfer $500 to my savings": ("transactional", "answered"),
             "What is the current exchange rate?": ("time_sensitive", "answered"),
-            # The simulated provider echoes the question, so its "answer" repeats the card
-            # number and output compliance withholds it. Two gates catch the same query.
-            "My card number is 4111 1111 1111 1111": ("personal_data", "blocked"),
+            # A long digit string that masking leaves alone (10 digits, no keyword) still
+            # trips her personal-data rule, so the answer is not cached.
+            "Is 4155550134 the right number to call?": ("personal_data", "answered"),
         }
         for query, (classification, outcome) in cases.items():
             with self.subTest(query=query):

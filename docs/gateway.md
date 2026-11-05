@@ -44,7 +44,7 @@ graph TD;
 
 | Node | Stage | Code behind it | Ends the run when |
 | --- | --- | --- | --- |
-| guardrails | 1. Input guardrails | stub (Team A) | status is `block` |
+| guardrails | 1. Input guardrails | Team A's policy in `config2/` via `gateway/guardrails_adapter.py` | status is `block` |
 | cache | 2. Semantic cache | `banking_chatbot/cache.py` via `gateway/cache_adapter.py` | status is `hit` |
 | intent | 3. Intent | `banking_chatbot/intent/` via `gateway/intent_adapter.py` | never |
 | router | 4. Model tier and cost estimate | `gateway/router.py` | never |
@@ -56,15 +56,20 @@ graph TD;
 
 | Stage | State | What is missing |
 | --- | --- | --- |
-| 1. Guardrails | Stub, allows everything | Team A's `guardrails.py` has the regex patterns but imports packages that do not exist, and defines no function to call. Until it lands, raw queries (including any card number a user types) reach the audit log unmasked. |
+| 1. Guardrails | Working when switched on: one model call per question | The four rules in `config2/prompts.yml` are checked by a Gemini call made by the gateway itself. Team A's `guardrails.py` runs the same rules through NeMo Guardrails, which cannot be installed next to LangGraph 1.2 (it needs `langchain-core` below 0.4) and does not import on Python 3.14, so that file is not used by the pipeline. The check runs on the tier-1 model, not the `gemini-3.5-flash` their config names, because the free tier allows that model 20 requests a day; set `GUARDRAILS_MODEL` to change it. The policy check needs a key and the network, so it is off in simulated workload runs. Masking (`gateway/masking.py`) is local and always on: card numbers, Social Security numbers, account numbers, PINs and passwords are replaced with placeholders such as `[CARD NUMBER]` before any other stage runs, so the policy check, the model and the audit log only see the masked question, and a masked question is still answered. Values written out in words are not masked; the policy check blocks those, and such a blocked question is logged as typed. |
 | 2. Cache | Working: exact and semantic | Joohye's approval of using the system prompt as the cache's "source", since non-RAG has no retrieved rows. |
-| 3. Intent | Wired, inactive | The trained model file `banking_chatbot/intent/models/banking77_classifier.joblib` is git-ignored and not in the repo, and `litellm` is not in `requirements.txt`. Until both exist the stage reports `unknown` and says which is missing. Team C's tier suggestion is recorded in `intent.suggested_tier`; the router does not follow it. |
+| 3. Intent | Working | Team C's Banking77 model (`banking_chatbot/intent/models/banking77_classifier.joblib`, a TF-IDF plus logistic regression pipeline with 77 labels) labels every question in a few milliseconds. Below 20% confidence it falls back to `general_banking_faq`. Its tier suggestion is recorded in `intent.suggested_tier`; the router does not follow it, and the gateway's default system prompt is still used. |
 | 4. Router | Working | Two known misroutes out of 60 labelled queries (`python -m gateway.router_eval data/router_eval.csv`). |
 | 5. LLM | Working: simulated and live Gemini | |
 | 6. Compliance | Local checks enforced | The format, sensitive-data and contact validators run on every answer. The semantic reviewer does not: it requires retrieved references, which non-RAG does not have. `output_compliance.unreviewed` lists the rules that were therefore not checked. |
 
-A failed compliance check withholds the answer: the customer sees the policy's fallback
-message, the rejected text is removed from the decision record, and it is never cached.
+A failed compliance check withholds the answer: the customer is told it was blocked and
+why (for example, that it contained sensitive information), the rejected text is removed
+from the decision record, and it is never cached.
+
+Every record ends with `response`, the text the customer was shown: the answer when the
+run ended `answered` or `cached`, the reason when it ended `blocked`, and an apology with
+the provider's message when it ended `error`. `gateway/response.py` builds it.
 
 ## Three files, three jobs
 
@@ -86,6 +91,7 @@ source .venv/bin/activate
 python -m gateway "How do I reset my PIN?"                     # simulated, logged to var/decisions.jsonl
 python -m gateway "How do I reset my PIN?" --cache semantic    # run twice: second is a cache hit
 python -m gateway "Compare APR on both cards" --intent investment_question --live   # needs GEMINI_API_KEY in .env
+python -m gateway "My card is 4111 1111 1111 1111" --guardrails --live   # blocked by the input policy before any other stage
 python -m gateway.workload run data/workload_sample.csv         # 30 queries, simulated
 python -m gateway.workload summarize var/decisions.jsonl       # cost vs baseline from the audit log
 python -m streamlit run gateway_app.py --server.port 8502       # the demo page

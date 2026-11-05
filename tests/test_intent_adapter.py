@@ -47,7 +47,7 @@ class IntentAdapterTests(unittest.TestCase):
 
     def test_missing_dependency_is_reported_not_faked(self):
         # What a teammate sees before running `pip install -r requirements.txt`.
-        intent_adapter._IMPORT = "Team C's classifier could not be imported: litellm is not installed"
+        intent_adapter._IMPORT = "the intent classifier could not be imported: litellm is not installed"
         decision = intent_adapter.classify("How do I reset my PIN?")
         self.assertEqual(decision.label, "unknown")
         self.assertEqual(decision.confidence, 0.0, "no model means no confidence, not their hardcoded 0.70")
