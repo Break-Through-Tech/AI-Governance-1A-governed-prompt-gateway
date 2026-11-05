@@ -1,5 +1,6 @@
 """Team C's Banking77 classifier behind the gateway's stage-3 adapter."""
 
+import importlib.util
 import sys
 import types
 import unittest
@@ -44,11 +45,30 @@ class IntentAdapterTests(unittest.TestCase):
             self.addCleanup(patcher.stop)
         return pipeline
 
-    def test_missing_dependency_or_model_is_reported_not_faked(self):
+    def test_missing_dependency_is_reported_not_faked(self):
+        # What a teammate sees before running `pip install -r requirements.txt`.
+        intent_adapter._IMPORT = "Team C's classifier could not be imported: litellm is not installed"
         decision = intent_adapter.classify("How do I reset my PIN?")
         self.assertEqual(decision.label, "unknown")
         self.assertEqual(decision.confidence, 0.0, "no model means no confidence, not their hardcoded 0.70")
-        self.assertTrue("litellm" in decision.reason or "model file is missing" in decision.reason, decision.reason)
+        self.assertIn("litellm", decision.reason)
+
+    @unittest.skipUnless(importlib.util.find_spec("litellm"), "litellm is not installed")
+    def test_the_committed_model_classifies_real_questions(self):
+        """Team C's trained model, as committed, through the real import path."""
+        cases = {
+            "What's the exchange rate from USD to EUR?": "exchange_rate",
+            "My physical credit card was stolen at the airport yesterday.": "lost_or_stolen_card",
+            "I see a charge on my statement from a store I've never visited.": "extra_charge_on_statement",
+        }
+        for query, label in cases.items():
+            with self.subTest(query=query):
+                decision = intent_adapter.classify(query)
+                self.assertEqual(decision.label, label)
+                self.assertGreater(decision.confidence, 0.2)
+                self.assertIsNotNone(decision.suggested_tier)
+        nonsense = intent_adapter.classify("asdf qwer zxcv")
+        self.assertEqual(nonsense.label, "general_banking_faq", "their low-confidence fallback")
 
     def test_model_file_missing_names_the_file(self):
         self.with_their_classifier([1.0], None)
