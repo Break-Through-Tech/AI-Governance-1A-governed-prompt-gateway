@@ -1,0 +1,19 @@
+models:
+  - type: main
+    engine: google_genai
+    model: gemini-3.5-flash
+    parameters:
+      max_output_tokens: 1024
+
+  - type: self_check_input
+    engine: google_genai
+    model: gemini-3.5-flash
+    parameters:
+      max_output_tokens: 1024
+
+rails:
+  input:
+    flows:
+      - self check input
+
+passthrough: true
