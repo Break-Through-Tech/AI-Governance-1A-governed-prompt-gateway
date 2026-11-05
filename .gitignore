@@ -1,12 +1,5 @@
 .venv/
 __pycache__/
-*.pyc
-var/
-.streamlit/secrets.toml
-.DS_Store
-.env
-.venv/
-__pycache__/
 *.py[cod]
 .env
 .streamlit/secrets.toml
@@ -17,5 +10,8 @@ output/
 tmp/
 docs/*_final/
 
-# Runtime response-cache databases and SQLite sidecars
+# Runtime response-cache databases, audit logs and SQLite sidecars
 var/
+
+# Trained intent classifier (Team C). Not in the repo: each developer places it locally.
+banking_chatbot/intent/models/*.joblib
