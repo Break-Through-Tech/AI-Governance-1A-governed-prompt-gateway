@@ -29,12 +29,14 @@ from banking_chatbot.cache import (
     TEMPORARY_CACHE_POLICY_VERSION,
     TEMPORARY_POLICY_CLASSIFICATION,
     CacheContext,
+    CacheEligibility,
     CacheMode,
     CacheResult,
     CacheStatus,
     SQLiteResponseCache,
     SourceFingerprint,
     configured_cache_mode,
+    configured_semantic_settings,
     is_cacheable,
     stable_digest,
 )
@@ -43,6 +45,7 @@ from banking_chatbot.embeddings import LocalHashingEmbedder
 
 from . import compliance_adapter
 from .config import GatewayConfig, load_config
+from .masking import MASK_TOKEN
 from .prompts import system_prompt
 from .schema import CacheDecision, GenerationResult
 
@@ -79,7 +82,11 @@ class GatewayCache:
         self._prompt_version = stable_digest(prompt)[:12]
         self._tiers = {t.name: [t.model, t.thinking_level] for t in config.tiers.values()}
         self.embedder = LocalHashingEmbedder() if self.mode in SEMANTIC_MODES else None
-        self.backend = SQLiteResponseCache(Path(path), embedder=self.embedder)
+        settings = {}
+        if self.mode in SEMANTIC_MODES:
+            threshold, margin = configured_semantic_settings()
+            settings = {"semantic_threshold": threshold, "semantic_margin": margin}
+        self.backend = SQLiteResponseCache(Path(path), embedder=self.embedder, **settings)
 
     # ---- scope ---------------------------------------------------------------
 
@@ -102,6 +109,8 @@ class GatewayCache:
         )
 
     def _eligibility(self, query: str, generation: dict | None = None):
+        if MASK_TOKEN.search(query):
+            return CacheEligibility(False, "personal_data", "Sensitive data was masked before cache lookup.")
         return is_cacheable(
             query,
             self._matches,

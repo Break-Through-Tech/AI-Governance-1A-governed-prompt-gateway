@@ -169,7 +169,7 @@ class SemanticCacheTests(unittest.TestCase):
         second = embedder.embed(["How do I change my PIN?", "Reset my PIN"])
         np.testing.assert_allclose(first, second)
         np.testing.assert_allclose(np.linalg.norm(first, axis=1), np.ones(2), atol=1e-6)
-        self.assertIn("v1", embedder.version)
+        self.assertEqual(embedder.version, "local-hashing-word-char-v3-4096")
 
     def test_cache_mode_validation(self):
         self.assertEqual(configured_cache_mode("semantic").value, "semantic")

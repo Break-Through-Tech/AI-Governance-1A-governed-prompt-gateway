@@ -80,6 +80,12 @@ def render_stage(name: str, title: str, block: dict | None) -> None:
             st.caption(block["reason"])
             if block["signals"]:
                 st.caption("signals: " + ", ".join(block["signals"]))
+        elif name == "cache":
+            if block.get("match_type"):
+                st.caption(f"Match type · {block['match_type']}")
+            if block.get("similarity") is not None:
+                st.caption(f"Similarity · {block['similarity']:.3f}")
+            st.caption(block.get("reason", ""))
         elif name == "generation":
             thinking = f" + {block['thinking_tokens']} thinking" if block.get("thinking_tokens") else ""
             st.caption(f"{block['provider']} · {block['input_tokens']} in / {block['output_tokens']} out{thinking} · {block['elapsed_ms']:.0f} ms")
@@ -124,7 +130,7 @@ def render_response(record: dict) -> None:
         else:
             st.write(text)
             if status == "cached":
-                st.caption("Served from the response cache. No model was called.")
+                st.caption("Served from the response cache. Answer generation was skipped.")
             elif generation.get("simulated"):
                 st.caption("Simulated provider: this is a placeholder, not a model's answer. "
                            "Turn on “Call Gemini for real” in the sidebar for an actual reply.")

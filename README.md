@@ -14,6 +14,7 @@ python -m streamlit run gateway_app.py --server.port 8502  # demo page: six stag
 python -m gateway.graph                                    # the pipeline as a Mermaid diagram
 ```
 
+- [Semantic cache demo, verified prompt pairs and known limitations](docs/semantic-cache-demo.md)
 - [Pipeline, router and cache](docs/gateway.md)
 
 ## Local banking chatbot foundation

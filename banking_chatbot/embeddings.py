@@ -22,19 +22,93 @@ class Embedder(ABC):
 
 
 _CANONICAL_TERMS = {
+    "activating": "activate",
+    "reset": "change",
+    "resetting": "change",
     "alter": "change",
     "changing": "change",
+    "branches": "branch",
+    "fees": "fee",
+    "charges": "charge",
     "modify": "change",
-    "reset": "change",
     "updated": "change",
     "updating": "change",
     "update": "change",
 }
 
 
+# Normalize the framing of a how-to question as a unit. Keeping a "howto"
+# token distinguishes a request for instructions from a direct action request.
+_HOW_TO = re.compile(
+    r"^(?:how (?:do|can|should) i|how to|"
+    r"what (?:is the (?:procedure|process|way)|are the steps) (?:to|for))\s+"
+)
+_DEFINITION = re.compile(r"^(?:what is|what s|(?:can|could) you explain|explain|define)\s+")
+_POLITE_PREFIX = re.compile(r"^(?:please )?(?:(?:(?:could|can) you )?(?:tell|show) me )?")
+_BANKING_PHRASES = {
+    "personal identification number": "pin",
+    "automated teller machine": "atm",
+    "annual percentage rate": "apr",
+    "mobile application": "mobile app",
+    "telephone number": "phone number",
+    "e mail": "email",
+}
+# Limit removal to articles and first-person possessives in how-to questions.
+# Broad English stop lists also remove meaningful words such as "where" and "why".
+_ARTICLES = {"a", "an", "the"}
+
+
+_SUBJECT_NOUNS = {"branches": "branch", "centers": "center", "offices": "office", "desks": "desk"}
+
+# Each pattern extracts what the question is about. Named suffixes retain
+# restrictions after the predicate, e.g. a day, channel or location.
+_QUESTION_FRAMES = (
+    ("hours", r"what are (?:the )?(?:(?:opening|operating|business) )?hours (?:for|of) (?P<subject>.+)"),
+    ("hours", r"what are (?P<subject>.+?) (?:(?:opening|operating|business) )?hours(?P<suffix> .+)?"),
+    ("hours", r"when (?:is|are) (?P<subject>.+?) open(?P<suffix> .+)?"),
+    ("fee", r"how much (?:does|do) (?P<subject>.+?) cost(?P<suffix> .+)?"),
+    ("fee", r"what (?:is|s) (?:the |a )?(?:fee|cost|charge) (?:for|of) (?P<subject>.+)"),
+    ("duration", r"how long (?:does|do) (?P<subject>.+?) take(?P<suffix> .+)?"),
+    ("duration", r"what (?:is|s) (?:the )?processing time for (?P<subject>.+)"),
+)
+_FRAME_PATTERNS = tuple((kind, re.compile(pattern)) for kind, pattern in _QUESTION_FRAMES)
+
+
+def _question_words(text: str) -> str:
+    words = " ".join(re.findall(r"[^\W_]+", text.casefold()))
+    return _POLITE_PREFIX.sub("", words)
+
+
+def question_frame(text: str) -> tuple[str, str] | None:
+    """Return the question type and ordered subject, including its qualifiers."""
+    words = _question_words(text)
+    for kind, pattern in _FRAME_PATTERNS:
+        match = pattern.fullmatch(words)
+        if match is None:
+            continue
+        subject = match["subject"] + (match.groupdict().get("suffix") or "")
+        # In the single-bank FAQ, "your" refers to the bank being asked.
+        # Preserve "my", named banks, places, weekdays and product qualifiers.
+        if kind == "hours":
+            subject = subject.removeprefix("your ")
+        subject = re.sub(r"^(?:a|an|the) ", "", subject)
+        subject = " ".join(_SUBJECT_NOUNS.get(word, word) for word in subject.split())
+        subject = re.sub(r"\bbank branch\b", "branch", subject)
+        return kind, subject
+    return None
+
+
 def _canonicalize(text: str) -> str:
-    words = re.findall(r"[a-z0-9]+", text.casefold())
-    return " ".join(_CANONICAL_TERMS.get(word, word) for word in words)
+    frame = question_frame(text)
+    if frame is not None:
+        return " ".join(frame)
+    words = _HOW_TO.sub("howto ", _question_words(text))
+    words = _DEFINITION.sub("definition ", words)
+    for phrase, term in _BANKING_PHRASES.items():
+        words = re.sub(r"\b" + phrase + r"\b", term, words)
+    tokens = words.split()
+    ignored = _ARTICLES | {"my"} if tokens[:1] == ["howto"] else _ARTICLES
+    return " ".join(_CANONICAL_TERMS.get(word, word) for word in tokens if word not in ignored) or text.casefold()
 
 
 class LocalHashingEmbedder(Embedder):
@@ -44,14 +118,14 @@ class LocalHashingEmbedder(Embedder):
     paraphrases. The version changes whenever preprocessing or dimensions do.
     """
 
-    _VERSION = "local-hashing-word-char-v1-4096"
+    _VERSION = "local-hashing-word-char-v3-4096"
 
     def __init__(self) -> None:
         self._word = HashingVectorizer(
             n_features=2048,
             alternate_sign=False,
             norm=None,
-            stop_words="english",
+            token_pattern=r"(?u)\b\w+\b",
             ngram_range=(1, 2),
         )
         self._character = HashingVectorizer(

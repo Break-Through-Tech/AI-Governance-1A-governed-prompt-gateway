@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import re
 
+MASK_TOKEN = re.compile(r"\[(?:CARD NUMBER|PIN|PASSWORD|ACCOUNT NUMBER|SSN)\]")
+
 # Each entry: (what to call it, pattern, replacement). Patterns with a keyword keep the
 # keyword (group 1) and replace only the value, so the question still reads naturally.
 _RULES: list[tuple[str, re.Pattern[str], str]] = [

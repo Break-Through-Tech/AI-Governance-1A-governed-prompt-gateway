@@ -24,7 +24,7 @@ from typing import Callable
 import numpy as np
 
 from .data import ROOT
-from .embeddings import Embedder, validate_embeddings
+from .embeddings import Embedder, question_frame, validate_embeddings
 
 
 DEFAULT_CACHE_PATH = ROOT / "var/response_cache.sqlite3"
@@ -58,6 +58,14 @@ _TRANSACTIONAL = re.compile(
     r"\b(?:cancel|reverse) (?:my |the )?(?:payment|transfer|transaction)\b)",
     re.IGNORECASE,
 )
+
+# Lexical similarity cannot reliably distinguish negation or changed amounts.
+# These queries can still reuse their exact entry when policy permits it.
+_EXACT_ONLY_WORDING = re.compile(
+    r"\d|[$€£%]|n['’]t\b|\b(?:no|not|never|cannot|without|unable|except|unless)\b",
+    re.IGNORECASE,
+)
+
 
 class CacheStatus(str, Enum):
     """Auditable outcomes for every cache decision."""
@@ -682,8 +690,15 @@ class SQLiteResponseCache(ResponseCache):
         if self._initialization_error:
             return self._error("Cache storage is unavailable; generation should continue.")
 
+        if _EXACT_ONLY_WORDING.search(context.normalized_query):
+            return CacheResult(CacheAudit(
+                status=CacheStatus.MISS,
+                reason="Negation or numeric wording requires an exact match.",
+            ))
+
         now = float(self._clock())
         try:
+            frame = question_frame(context.normalized_query)
             query_vector = validate_embeddings(
                 self.embedder.embed([context.normalized_query]), 1,
             )[0]
@@ -695,7 +710,7 @@ class SQLiteResponseCache(ResponseCache):
                     "source_ids_json, source_content_digest, model, system_prompt_version, "
                     "policy_classification, policy_version, knowledge_base_digest, "
                     "generation_settings_digest, conversation_context_digest, "
-                    "tenant_or_jurisdiction FROM response_cache "
+                    "tenant_or_jurisdiction, normalized_query FROM response_cache "
                     "WHERE scope_fingerprint = ? AND embedding_model_version = ? "
                     "AND embedding IS NOT NULL AND exact_key != ? AND expires_at > ?",
                     (
@@ -707,6 +722,9 @@ class SQLiteResponseCache(ResponseCache):
                 ).fetchall()
                 scored: list[tuple[float, tuple[object, ...]]] = []
                 for row in rows:
+                    stored_query = row[-1]
+                    if _EXACT_ONLY_WORDING.search(stored_query) or question_frame(stored_query) != frame:
+                        continue
                     dimensions = row[6]
                     if not isinstance(dimensions, int) or dimensions != query_vector.shape[0]:
                         continue
@@ -715,12 +733,12 @@ class SQLiteResponseCache(ResponseCache):
                         continue
                     score = float(np.dot(query_vector, candidate))
                     if math.isfinite(score):
-                        scored.append((max(0.0, min(1.0, score)), row))
+                        scored.append((max(0.0, min(1.0, score)), row[:-1]))
 
                 if not scored:
                     return CacheResult(CacheAudit(
                         status=CacheStatus.MISS,
-                        reason="No semantic candidate exists in this governed scope.",
+                        reason="No eligible semantic candidate exists in this governed scope.",
                     ))
                 scored.sort(key=lambda item: item[0], reverse=True)
                 best_score, best = scored[0]

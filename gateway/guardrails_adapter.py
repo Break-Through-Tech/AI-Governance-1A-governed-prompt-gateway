@@ -43,6 +43,7 @@ import yaml
 from .config import GatewayConfig, load_config
 from .cost import estimate_cost
 from .llm import GeminiProvider
+from .masking import MASK_TOKEN
 from .schema import GuardrailDecision
 
 POLICY_DIR = Path(__file__).resolve().parents[1] / "config2"
@@ -63,7 +64,6 @@ MASKED_VALUE_NOTE = (
     "is not sensitive information, so it does not violate policy 4. Any sensitive value that is "
     "still written out does."
 )
-_MASK_TOKEN = re.compile(r"\[(?:CARD NUMBER|PIN|PASSWORD|ACCOUNT NUMBER|SSN)\]")
 _PLACEHOLDER = re.compile(r"\{\{\s*user_input\s*\}\}")
 _RULE = re.compile(r"^\s*(\d+)\.\s*([^:\n]+):\s*(.+)$", re.MULTILINE)
 _VERDICT = re.compile(r"\b(yes|no)\b", re.IGNORECASE)
@@ -103,7 +103,7 @@ class InputGuardrails:
     def render(self, query: str) -> str:
         """Fill the question into Team A's prompt. The lambda keeps backslashes in it literal."""
         prompt = _PLACEHOLDER.sub(lambda _: query[:MAX_QUERY_CHARS], self.template)
-        if self.masked_values_are_safe and _MASK_TOKEN.search(query):
+        if self.masked_values_are_safe and MASK_TOKEN.search(query):
             prompt += MASKED_VALUE_NOTE
         return prompt + RULE_NUMBER_REQUEST
 
