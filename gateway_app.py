@@ -2,16 +2,21 @@
 
     .venv/bin/python -m streamlit run gateway_app.py
 
-Tab 1: type a question and watch the six stages light up, with the decision record.
+Tab 1: type a question and watch it travel through the LangGraph: each node lights up
+as it runs, with one line of narration per step, then the answer, the stage cards and
+the decision record.
 Tab 2: aggregate numbers over the audit log (block rate, tier split, cost, savings).
 
-This page only *displays* what ``gateway.pipeline.process`` returns. No routing or
-cost logic lives here, so the CLI, the tests, and this page always agree.
+This page only *displays* what ``gateway.pipeline.process`` returns and reports through
+``on_step``. No routing or cost logic lives here, so the CLI, the tests, and this page
+always agree. The drawing comes from ``gateway.walkthrough``, which reads the compiled
+graph itself.
 """
 
 from __future__ import annotations
 
 import os
+import time
 
 import streamlit as st
 
@@ -22,7 +27,10 @@ from gateway.config import load_config
 from gateway.env import load_dotenv
 from gateway.llm import GeminiProvider, SimulatedProvider
 from gateway.pipeline import process
+from gateway.walkthrough import diagram, narrate
 from gateway.workload import load_queries, run_workload, summarize
+
+GRAPH_HEIGHT = 215  # px: the diagram is 1200x250 units, scaled to the page width (about 1000 px)
 
 STAGES = [
     ("input_guardrails", "1. Input guardrails"),
@@ -110,18 +118,20 @@ def render_stage(name: str, title: str, block: dict | None) -> None:
             st.caption(block.get("reason", ""))
 
 
-def render_response(record: dict) -> None:
-    """The exchange as the customer sees it: their question, then the answer or why there is none."""
+def render_question(query: str, removed: list[str]) -> None:
+    with st.chat_message("user"):
+        st.write(query)
+        if removed:
+            st.caption("For your security, this was removed before your question was processed: "
+                       + ", ".join(removed) + ".")
+
+
+def render_answer(record: dict) -> None:
+    """What the customer sees after their question: the answer, or why there is none."""
     status = record["final_status"]
     generation = record.get("generation") or {}
     router = record.get("router") or {}
     text = record.get("response") or generation.get("answer") or ""
-    with st.chat_message("user"):
-        st.write(record["query"])
-        removed = (record.get("input_guardrails") or {}).get("masked") or []
-        if removed:
-            st.caption("For your security, this was removed before your question was processed: "
-                       + ", ".join(removed) + ".")
     with st.chat_message("assistant"):
         if status == "blocked":
             st.error(f"**Blocked.** {text}")
@@ -138,9 +148,44 @@ def render_response(record: dict) -> None:
                 st.caption(f"Answered by {generation.get('model', '?')} ({router.get('tier', '?')})")
 
 
+def render_graph(visited: list[str], *, finished: bool) -> None:
+    """Draw the compiled graph with this run's path highlighted. Plain SVG in a small frame."""
+    page = f'<!doctype html><html><body style="margin:0;background:transparent">{diagram(visited, finished=finished)}</body></html>'
+    st.iframe(page, height=GRAPH_HEIGHT)
+
+
+class Slots:
+    """One ``st.empty`` placeholder per element that is redrawn during a run.
+
+    Each placeholder holds exactly one element, so replacing it is reliable. (A single
+    placeholder holding a container keeps stale children when the next drawing has fewer.)
+    """
+
+    def __init__(self) -> None:
+        self.question = st.empty()
+        self.answer = st.empty()
+        st.subheader("How the gateway decided")
+        self.graph = st.empty()
+        self.story = st.empty()
+        self.status = st.empty()
+
+    def walkthrough(self, visited: list[str], story: list[str], *, finished: bool) -> None:
+        """The graph plus one numbered line per node that has run."""
+        with self.graph:
+            render_graph(visited, finished=finished)
+        if story:
+            self.story.markdown("\n".join(f"{n}. {line}" for n, line in enumerate(story, 1)))
+        else:
+            self.story.empty()
+        if finished:
+            self.status.empty()
+        else:
+            self.status.caption("Running…")
+
+
 def render_record(record: dict) -> None:
-    render_response(record)
-    st.subheader("How the gateway decided")
+    """The stage cards, the cost and the raw record for the last run."""
+    st.subheader("Stage details")
     columns = st.columns(3)
     for index, (name, title) in enumerate(STAGES):
         with columns[index % 3]:
@@ -181,21 +226,58 @@ def tab_single() -> None:
                                   help="Ask the same question twice to see a hit; "
                                        "semantic also matches close paraphrases.")
         log = st.toggle("Write to audit log", value=True)
+        pace = st.slider("Pause between graph steps (s)", 0.0, 2.0, 0.6, 0.1,
+                         help="Only for watching: slows the walkthrough down so each node is visible. "
+                              "Set to 0 for the real speed.")
         st.divider()
         st.caption(f"Price table {cfg.version} · tiers: " + ", ".join(f"{t.name}={t.model}" for t in cfg.tiers.values()))
 
-    st.write("Type a banking question and watch each stage decide.")
+    st.write("Type a banking question and watch it travel through the graph.")
     query = st.chat_input("Ask a banking question…")
+
+    # Placeholders in page order. During a run they are redrawn after every node; afterwards
+    # (and on any later rerun of the page) they show the finished run from session state.
+    slots = Slots()
+
     if query:
         provider = GeminiProvider() if live else SimulatedProvider(cfg.rules.expected_output_tokens)
-        with st.spinner("Calling Gemini…" if live else "Running the gateway…"):
-            record = process(query, intent=intent, provider=provider, config=cfg,
-                             audit=AuditLog(DEFAULT_LOG_PATH) if log else None,
-                             cache=None if cache_mode == "off" else gateway_cache(cache_mode),
-                             guardrails=input_guardrails() if guard else None)
+        visited: list[str] = []
+        story: list[str] = []
+        with slots.question:
+            render_question(query, [])
+        slots.walkthrough(visited, story, finished=False)
+
+        def on_step(node: str, state: dict) -> None:
+            visited.append(node)
+            story.append(narrate(node, state))
+            if node == "guardrails":  # from here on the state holds the masked question
+                with slots.question:
+                    render_question(state["query"], state["input_guardrails"].masked)
+            slots.walkthrough(visited, story, finished=False)
+            if pace:
+                time.sleep(pace)
+
+        record = process(query, intent=intent, provider=provider, config=cfg,
+                         audit=AuditLog(DEFAULT_LOG_PATH) if log else None,
+                         cache=None if cache_mode == "off" else gateway_cache(cache_mode),
+                         guardrails=input_guardrails() if guard else None,
+                         on_step=on_step)
         st.session_state["last_record"] = record.to_dict()
+        st.session_state["last_walk"] = {"visited": visited, "story": story}
+
     if "last_record" in st.session_state:
-        render_record(st.session_state["last_record"])
+        record = st.session_state["last_record"]
+        walk = st.session_state.get("last_walk", {"visited": [], "story": []})
+        with slots.question:
+            render_question(record["query"], (record.get("input_guardrails") or {}).get("masked") or [])
+        with slots.answer:
+            render_answer(record)
+        slots.walkthrough(walk["visited"], walk["story"], finished=True)
+        render_record(record)
+    else:
+        slots.walkthrough([], [], finished=True)
+        slots.status.caption("No question yet. The graph above is the pipeline LangGraph compiled; "
+                             "ask something to see the path it takes.")
 
 
 def tab_workload() -> None:

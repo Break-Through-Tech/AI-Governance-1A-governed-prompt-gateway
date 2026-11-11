@@ -10,7 +10,7 @@ team plugs into.
 ```bash
 source .venv/bin/activate
 python -m gateway "How do I reset my PIN?"                 # one query, simulated provider
-python -m streamlit run gateway_app.py --server.port 8502  # demo page: six stage cards and cost
+python -m streamlit run gateway_app.py --server.port 8502  # demo page: the LangGraph lights up node by node, then stage cards and cost
 python -m gateway.graph                                    # the pipeline as a Mermaid diagram
 ```
 
