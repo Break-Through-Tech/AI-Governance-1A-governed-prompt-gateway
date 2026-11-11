@@ -109,19 +109,21 @@ that redraws the page after every node.
 
 `gateway/walkthrough.py` turns those events into what the page shows:
 
-- `diagram(visited, finished=...)` builds a Mermaid flowchart from
+- `diagram(visited, finished=...)` draws the graph as plain SVG from
   `GRAPH.get_graph()`, the compiled graph itself, so it cannot drift from the
-  wiring. Visited nodes are green, the node that is running is amber, the
-  others grey; the edges the run took are drawn thick, and every conditional
-  exit carries its meaning (`allow`/`block`, `miss`/`hit`, `generated`/`error`,
-  `pass`/`fail`).
+  wiring (a test checks that every compiled node and edge is drawn exactly
+  once). The nodes form one straight row; each edge into `END` is drawn as the
+  outcome it means (`blocked`, `cached`, `error`, `withheld` under the node
+  that exits there, `answered` at the end of the row). Visited nodes are green,
+  the node that is running pulses amber, the others are grey; the edges the run
+  took are drawn thick, and every conditional exit carries its label
+  (`allow`/`block`, `miss`/`hit`, `generated`/`error`, `pass`/`fail`).
 - `narrate(node, state)` writes one sentence per node from the decision it just
   made, ending with what runs next or that the run stopped.
 
-The page renders the Mermaid text with mermaid.js from a CDN inside a small
-iframe (`st.iframe`); offline, it falls back to showing the diagram as text.
-The "Pause between graph steps" slider in the sidebar only slows the drawing
-down so each step is visible; it does not touch the pipeline.
+The page puts the SVG in a small `st.iframe`; no drawing library or network
+is needed. The "Pause between graph steps" slider in the sidebar only slows
+the drawing down so each step is visible; it does not touch the pipeline.
 
 ## Plugging a stage in
 

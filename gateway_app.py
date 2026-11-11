@@ -15,7 +15,6 @@ graph itself.
 
 from __future__ import annotations
 
-import html
 import os
 import time
 
@@ -31,8 +30,7 @@ from gateway.pipeline import process
 from gateway.walkthrough import diagram, narrate
 from gateway.workload import load_queries, run_workload, summarize
 
-MERMAID_JS = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.12.0/mermaid.min.js"
-GRAPH_HEIGHT = 200  # px: the left-to-right diagram scaled to the page width
+GRAPH_HEIGHT = 215  # px: the diagram is 1200x250 units, scaled to the page width (about 1000 px)
 
 STAGES = [
     ("input_guardrails", "1. Input guardrails"),
@@ -145,23 +143,8 @@ def render_answer(record: dict) -> None:
 
 
 def render_graph(visited: list[str], *, finished: bool) -> None:
-    """Draw the compiled graph with this run's path highlighted, via Mermaid in a small iframe."""
-    text = html.escape(diagram(visited, finished=finished))
-    page = f"""<!doctype html><html><body style="margin:0;background:transparent">
-<pre class="mermaid" style="margin:0;font-family:sans-serif">{text}</pre>
-<style>
-  g.current rect {{ animation: pulse 1s ease-in-out infinite; }}
-  @keyframes pulse {{ 50% {{ opacity: .45; }} }}
-</style>
-<script src="{MERMAID_JS}"
-        onerror="document.querySelector('pre').style.whiteSpace='pre';
-                 document.body.insertAdjacentHTML('afterbegin','<p>Could not load the diagram library; this is the graph as text.</p>')"></script>
-<script>
-  if (window.mermaid) mermaid.initialize({{startOnLoad: true, theme: "neutral",
-                                          themeVariables: {{fontSize: "22px"}},
-                                          flowchart: {{curve: "basis", useMaxWidth: true, nodeSpacing: 30, rankSpacing: 40, padding: 12}}}});
-</script>
-</body></html>"""
+    """Draw the compiled graph with this run's path highlighted. Plain SVG in a small frame."""
+    page = f'<!doctype html><html><body style="margin:0;background:transparent">{diagram(visited, finished=finished)}</body></html>'
     st.iframe(page, height=GRAPH_HEIGHT)
 
 
