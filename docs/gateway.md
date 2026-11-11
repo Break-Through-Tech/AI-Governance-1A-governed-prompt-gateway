@@ -91,13 +91,37 @@ source .venv/bin/activate
 python -m gateway "How do I reset my PIN?"                     # simulated, logged to var/decisions.jsonl
 python -m gateway "How do I reset my PIN?" --cache semantic    # run twice: second is a cache hit
 python -m gateway "Compare APR on both cards" --intent investment_question --live   # needs GEMINI_API_KEY in .env
-python -m gateway "My card is 4111 1111 1111 1111" --guardrails --live   # blocked by the input policy before any other stage
+python -m gateway "My card is 4111 1111 1111 1111" --guardrails --live   # the number is masked first, then the input policy runs
 python -m gateway.workload run data/workload_sample.csv         # 30 queries, simulated
 python -m gateway.workload summarize var/decisions.jsonl       # cost vs baseline from the audit log
-python -m streamlit run gateway_app.py --server.port 8502       # the demo page
+python -m streamlit run gateway_app.py --server.port 8502       # the demo page: the graph lights up node by node
 python -m unittest discover -s tests -q
 python scripts/intent_live_check.py                             # Team C's own check: needs litellm, the model file, and makes live calls
 ```
+
+## Watching a run on the demo page
+
+`process()` takes an optional `on_step(node_name, state)` callback. It runs the
+graph with `GRAPH.stream(..., stream_mode="updates")` instead of `invoke()`, so
+each node's update arrives as soon as that node finishes; the final state, and
+therefore the record, is the same either way. The demo page passes a callback
+that redraws the page after every node.
+
+`gateway/walkthrough.py` turns those events into what the page shows:
+
+- `diagram(visited, finished=...)` builds a Mermaid flowchart from
+  `GRAPH.get_graph()`, the compiled graph itself, so it cannot drift from the
+  wiring. Visited nodes are green, the node that is running is amber, the
+  others grey; the edges the run took are drawn thick, and every conditional
+  exit carries its meaning (`allow`/`block`, `miss`/`hit`, `generated`/`error`,
+  `pass`/`fail`).
+- `narrate(node, state)` writes one sentence per node from the decision it just
+  made, ending with what runs next or that the run stopped.
+
+The page renders the Mermaid text with mermaid.js from a CDN inside a small
+iframe (`st.iframe`); offline, it falls back to showing the diagram as text.
+The "Pause between graph steps" slider in the sidebar only slows the drawing
+down so each step is visible; it does not touch the pipeline.
 
 ## Plugging a stage in
 
